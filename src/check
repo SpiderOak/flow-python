@@ -1,9 +1,9 @@
 #! /bin/bash
 # Script to run static analysis checks on the python sources
 # usage to check files: 
-# ./check 
+# ./check
 # usage to format files:
-# ,/check --format
+# ./check --format
 
 SOURCES="*.py"
 
