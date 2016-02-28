@@ -129,6 +129,8 @@ class Flow(object):
         pass
 
     def __init__(self,
+                 username="",
+                 server_uri="",
                  flowappglue="",
                  debug=False,
                  host="",
@@ -142,6 +144,7 @@ class Flow(object):
         It also starts a new session so that you can start using
         the Flow API. You should be good by calling this function
         with no arguments.
+        It will call start_up() if a username is provided.
         Arguments:
         flowappglue : string, path to the flowappglue binary,
         if empty, then it tries to determine the location.
@@ -157,9 +160,12 @@ class Flow(object):
         self._token = token_port_line["token"]
         self._port = token_port_line["port"]
         self.sessions = {}  # SessionID -> _Session
-        # Configure flowappglue and start the session
+        # Configure flowappglue and create the session
         self._config(host, port, db_dir, schema_dir, attachment_dir, use_tls)
         self._current_session = self.new_session()
+        # If username available then start the session
+        if username:
+            self.start_up(username, server_uri)
 
     def terminate(self):
         """Shuts down the flowappglue local server.
