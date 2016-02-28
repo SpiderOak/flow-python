@@ -5,17 +5,16 @@
 flow-python is a module to interact with the Flow stack using python.
 
 ## Install
-```bash
+```
 $ git clone https://github.com/SpiderOak/flow-python.git
 $ cd flow-python
 $ sudo python setup.py install
 ```
-## Simple Usage
+## Basic Usage
 
 Here's a simple script to list a user's Organizations/Teams:
-
 ```python
-# !/usr/bin/env python
+#!/usr/bin/env python
 from flow import Flow
 
 # Create flow intance and start using the API
@@ -28,12 +27,9 @@ print(flow.enumerate_orgs())
 flow.terminate()
 ```
 
-## Listen for notifications
-
 Here's a script that listens for messages and prints them to stdout:
-
 ```python
-# !/usr/bin/env python
+#!/usr/bin/env python
 from flow import Flow
 
 flow = Flow('your-flow-username')
@@ -48,7 +44,7 @@ def print_message(data):
 flow.register_callback(Flow.MESSAGE_NOTIFICATION, print_message)
 
 try:
-	# Once you registered all your callbacks, all you have to do is loop.
+    # Once you registered all your callbacks, all you have to do is loop.
     flow.process_notifications()
 except:
     flow.terminate()
@@ -60,4 +56,6 @@ except:
 - Document all arguments of the Flow API. 
 - Document Flow dict objects that are returned on many of the methods.
 - Unit Testing the flow module.
-- See TODOs in source code.
+- It has support for multiple sessions but this hasn't been tested yet.
+- The app is responsible for calling Flow.terminate() before it quits. This is needed because the Flow module starts a separate local server process (semaphor-backend) and a separate thread to listen for notifications, terminate() cleans everything up. Find a way to save this pain from the user.
+- See other TODOs in source code.
