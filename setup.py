@@ -2,8 +2,8 @@ from setuptools import setup, find_packages
 
 setup(name = "flow-python",
       version = "0.1",
-      package_dir = { "": "src" },
-      py_modules = [ "flow", "definitions" ],
+      package_dir = { "flow": "src" },
+      packages = [ "flow" ],
       install_requires = [ "requests" ],
       keywords = [ "spideroak", "flow", "semaphor" ],
       author = "Lucas Manuel Rodriguez",
