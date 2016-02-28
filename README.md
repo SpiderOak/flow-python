@@ -52,11 +52,11 @@ except:
 
 ## TODO
 
-- Implement remaining Flow API methods (e.g. enumerate_peer_verifications, create_device, etc.).
+- Implement remaining Flow API methods (e.g. `enumerate_peer_verifications`, `create_device`, etc.).
 - Document all arguments of the Flow API. 
 - Document Flow dict objects that are returned on many of the methods.
 - Unit Testing the flow module.
 - It has support for multiple sessions but this hasn't been tested yet.
-- The app is responsible for calling Flow.terminate() before it quits. This is needed because the Flow module starts a separate local server process (semaphor-backend) and a separate thread to listen for notifications, terminate() cleans everything up. Find a way to save this pain from the user.
-- Remove unnecessary args in Flow's __init__().
+- The app is responsible for calling `Flow.terminate()` before it quits. This is needed because the Flow module starts a separate local server process (semaphor-backend) and a separate thread to listen for notifications, `Flow.terminate()` cleans everything up. Find a way to save this pain from the user.
+- Remove unnecessary args in Flow's `__init__()`.
 - See other TODOs in source code.
