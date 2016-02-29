@@ -99,6 +99,7 @@ class Flow(object):
             Arguments:
             timeouts_secs : float, seconds to block waiting for notifications.
             """
+            notification_consumed = False
             try:
                 notification = \
                     self.notification_queue.get(
@@ -113,8 +114,10 @@ class Flow(object):
                         notification["Type"])
                 finally:
                     self.callback_lock.release()
+                notification_consumed = True
             except Queue.Empty:
-                pass
+                notification_consumed = False
+            return notification_consumed
 
         def close(self):
             """Closes the session by terminating the listener thread."""
@@ -201,12 +204,13 @@ class Flow(object):
                 token=self._token))
         self._print_debug("request: %s" % request_str)
         try:
+            request_timeout = None if method == "WaitForNotification" else self._REQUEST_TIMEOUT
             response = requests.post(
                 "http://localhost:%s/rpc" %
                 self._port,
                 headers={'Content-type': 'application/json'},
                 data=request_str,
-                timeout=self._REQUEST_TIMEOUT)
+                timeout=request_timeout)
         except (requests.exceptions.ConnectionError,
                 requests.exceptions.Timeout) as flow_err:
             raise Flow.FlowError(str(flow_err))
