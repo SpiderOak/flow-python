@@ -54,7 +54,7 @@ except:
 
 - If you intend to use one of the examples above, 'your-flow-username' should already be logged-in in your device.
 - The app is responsible for calling `Flow.terminate()` before it quits. This is needed because the Flow module starts a separate local server process (semaphor-backend) and a separate thread to listen for notifications, `Flow.terminate()` cleans everything up. (*)
-- All Flow API requests timeout after 30 seconds, with the exception of `Flow.wait_for_notification()`.
+- All Flow API requests timeout after 30 seconds, with the exception of `Flow.wait_for_notification()`. (**)
 - An application should use a single instance of `flow.Flow`.
 
 ## TODO
@@ -65,5 +65,6 @@ except:
 - Unit Testing the flow module.
 - It has support for multiple sessions but this hasn't been tested yet.
 - (*) Find a way to save this pain from the user.
+- (**) Add a `timeout` argument on all Flow API requests (with default to `None` value).
 - Remove unnecessary args in Flow's `__init__()`.
 - See other TODOs in source code.
