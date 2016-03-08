@@ -24,8 +24,6 @@ class Flow(object):
     MESSAGE_NOTIFICATION = "message"
     CHANNEL_MEMBER_NOTIFICATION = "channel-member-event"
 
-    _REQUEST_TIMEOUT = 30.0
-
     class _Session(object):
         """Internal class to hold session data."""
 
@@ -70,23 +68,33 @@ class Flow(object):
             self.callbacks[notification_name] = callback
             self.callback_lock.release()
 
+        def _queue_changes(self, changes):
+            """Queues the changes of registered change types.
+            Arguments:
+            changes : Change dict/s returned by wait_for_notification.
+            """
+            # If single notification, then make a one-elem list
+            if not isinstance(changes, list):
+                changes = [changes]
+            for change in changes:
+                if change and "Type" in change \
+                   and change["Type"] in self.callbacks:
+                    # This check should leave the queue with
+                    # an approximate size of _MAX_QUEUE_SIZE
+                    if self.notification_queue.qsize() > self._MAX_QUEUE_SIZE:
+                        notification = self.notification_queue.get()
+                        self.flow._print_debug(
+                            "Queue is full: ignoring notification '%s'" %
+                            notification["Data"])
+                    self.notification_queue.put(change)
+
         def _notification_loop(self):
             """Loops calling WaitForNotification on this session."""
             while self.listen_notifications.is_set():
                 try:
-                    change = self.flow.wait_for_notification(self.sid)
+                    changes = self.flow.wait_for_notification(self.sid)
                     self.callback_lock.acquire()
-                    if change and "Type" in change \
-                       and change["Type"] in self.callbacks:
-                        # This check should leave the queue with
-                        # an approximate size of _MAX_QUEUE_SIZE
-                        if self.notification_queue.qsize() > \
-                                self._MAX_QUEUE_SIZE:
-                            notification = self.notification_queue.get()
-                            self.flow._print_debug(
-                                "Queue is full: ignoring notification '%s'" %
-                                notification["Data"])
-                        self.notification_queue.put(change)
+                    self._queue_changes(changes)
                     self.callback_lock.release()
                 except Flow.FlowError:
                     pass
@@ -112,6 +120,9 @@ class Flow(object):
                     self.flow._print_debug(
                         "Notification of type '%s' not supported." %
                         notification["Type"])
+                except Exception as exception:
+                    self.flow._print_debug(
+                        "Error: %s" % str(exception))
                 finally:
                     self.callback_lock.release()
                 notification_consumed = True
@@ -122,8 +133,6 @@ class Flow(object):
         def close(self):
             """Closes the session by terminating the listener thread."""
             self.listen_notifications.clear()
-            # TODO: discuss if we want to wait for the thread to finish
-            # or just finish (the thread will finish by its own)
             if self.notification_thread.is_alive():
                 self.notification_thread.join()
 
@@ -166,6 +175,7 @@ class Flow(object):
         # Configure flowappglue and create the session
         self._config(host, port, db_dir, schema_dir, attachment_dir, use_tls)
         self._current_session = self.new_session()
+        self._loop_process_notifications = False
         # If username available then start the session
         if username:
             self.start_up(username, server_uri)
@@ -174,13 +184,13 @@ class Flow(object):
         """Shuts down the flowappglue local server.
         It must be called when you are done using the Flow API.
         """
+        # Terminate the flowappglue process
+        if self._flowappglue:
+            self._flowappglue.terminate()
         # Close all sessions
         sids = list(self.sessions.keys())
         for sid in sids:
             self.close(sid)
-        # Terminate the flowappglue process
-        if self._flowappglue:
-            self._flowappglue.terminate()
 
     def _print_debug(self, msg):
         """Prints msg debug strings to stdout (if self.debug is True)"""
@@ -204,13 +214,11 @@ class Flow(object):
                 token=self._token))
         self._print_debug("request: %s" % request_str)
         try:
-            request_timeout = None if method == "WaitForNotification" else self._REQUEST_TIMEOUT
             response = requests.post(
                 "http://localhost:%s/rpc" %
                 self._port,
                 headers={'Content-type': 'application/json'},
-                data=request_str,
-                timeout=request_timeout)
+                data=request_str)
         except (requests.exceptions.ConnectionError,
                 requests.exceptions.Timeout) as flow_err:
             raise Flow.FlowError(str(flow_err))
@@ -226,15 +234,17 @@ class Flow(object):
             return response_data
 
     @staticmethod
-    def _check_file_exists(path):
+    def _check_file_exists(path, create_if_non_existent=False):
         """Internal check for path existence.
         Arguments:
         path : string, path to check for existence.
         Raises a Flow.FlowError exception if the path does not exist.
         """
         if not os.path.exists(path):
-            raise Flow.FlowError(
-                "Cannot access '%s', no such file or directory." % path)
+            if not create_if_non_existent:
+                raise Flow.FlowError(
+                    "Cannot access '%s', no such file or directory." % path)
+            os.makedirs(path, 0o700)
 
     def _config(
             self,
@@ -260,9 +270,9 @@ class Flow(object):
             schema_dir = definitions.get_default_schema_path()
         if not attachment_dir:
             attachment_dir = definitions.get_default_attachment_path()
-        self._check_file_exists(db_dir)
         self._check_file_exists(schema_dir)
-        self._check_file_exists(attachment_dir)
+        self._check_file_exists(db_dir, True)
+        self._check_file_exists(attachment_dir, True)
         self._run(method="Config",
                   FlowServHost=host,
                   FlowServPort=port,
@@ -310,6 +320,13 @@ class Flow(object):
             sid = self._current_session
         return self.sessions[sid].consume_notification(timeout_secs)
 
+    def set_processing_notifications(self, value=True):
+        """Sets whether to continue processing the notifications.
+        Use w/ value=False if you don't want to process more notifications.
+        It will make the app quit the 'process_notification()' loop.
+        """
+        self._loop_process_notifications = value
+
     def process_notifications(self, timeout_secs=0.05, sid=0):
         """Loop to processes notifications.
         This is to be called by your app if you just want to listen to
@@ -320,7 +337,8 @@ class Flow(object):
         """
         if not sid:
             sid = self._current_session
-        while True:
+        self._loop_process_notifications = True
+        while self._loop_process_notifications:
             self.sessions[sid].consume_notification(timeout_secs)
 
     def new_session(self):
@@ -375,19 +393,49 @@ class Flow(object):
         """Creates an account with the specified data.
         'PhoneNumber', along with 'EmailAddress' and 'ServerURI'
         (these last two provided at 'NewSession') must be unique.
+        It also starts the notification loop.
         Returns 'null'.
         """
         if not sid:
             sid = self._current_session
-        return self._run(method="CreateAccount",
-                         SessionID=sid,
-                         PhoneNumber=phone_number,
-                         DeviceName=device_name,
-                         EmailAddress=username,
-                         ServerURI=server_uri,
-                         Password=password,
-                         TotpVerifier=totpverifier,
-                         )
+        response = self._run(method="CreateAccount",
+                             SessionID=sid,
+                             PhoneNumber=phone_number,
+                             DeviceName=device_name,
+                             EmailAddress=username,
+                             ServerURI=server_uri,
+                             Password=password,
+                             TotpVerifier=totpverifier,
+                             )
+        self.sessions[sid].start_notification_loop()
+        return response
+
+    def create_device(self,
+                      username,
+                      server_uri,
+                      device_name,
+                      password,
+                      platform,
+                      os_release,
+                      sid=0):
+        """CreateDevice creates a new device for an existing account,
+        similar to CreateAccount in terms of parameters.
+        It also starts the notification loop (like create_account).
+        Returns a 'Device' dict.
+        """
+        if not sid:
+            sid = self._current_session
+        response = self._run(method="CreateDevice",
+                             SessionID=sid,
+                             EmailAddress=username,
+                             ServerURI=server_uri,
+                             DeviceName=device_name,
+                             Password=password,
+                             Platform=platform,
+                             OSRelease=os_release,
+                             )
+        self.sessions[sid].start_notification_loop()
+        return response
 
     def new_org(self, name, discoverable, sid=0):
         """Creates a new organization. Returns an 'Org' dict."""
