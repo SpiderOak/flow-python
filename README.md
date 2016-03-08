@@ -59,6 +59,7 @@ except:
 ## TODO
 
 - Implement remaining Flow API methods (e.g. `enumerate_peer_verifications`, `new_channel`, etc.).
+- Add remaining notification types (e.g. `Flow.ORG_MEMBER_NOTIFICATION`, etc.).
 - Document all arguments of the Flow API. 
 - Document Flow dict objects that are returned on many of the methods.
 - Unit Testing the flow module.

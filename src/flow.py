@@ -469,6 +469,15 @@ class Flow(object):
                          SessionID=sid,
                          )
 
+    def enumerate_org_members(self, oid, sid=0):
+        """Lists all members for an org and their state."""
+        if not sid:
+            sid = self._current_session
+        return self._run(method="EnumerateOrgMembers",
+                         SessionID=sid,
+                         OrgID=oid,
+                         )
+
     def enumerate_channels(self, oid, sid=0):
         """Lists the channels available for an 'OrgID'.
         Returns an array of 'Channel' dicts.
@@ -626,6 +635,44 @@ class Flow(object):
         return self._run(method="EnumerateLocalAccounts",
                          )
 
+    def new_org_member_state(self,
+                             oid,
+                             member_account_id,
+                             member_state,
+                             sid=0):
+        """Sets the Org member state for a given account.
+        'member_state' can be one of the following:
+        'a' (admin), 'm' (member), 'o' (owner), 'b' (blocked).
+        """
+        if not sid:
+            sid = self._current_session
+        return self._run(method="NewOrgMemberState",
+                         SessionID=sid,
+                         OrgID=oid,
+                         MemberAccountID=member_account_id,
+                         MemberState=member_state,
+                         )
+
+    def new_channel_member_state(self,
+                                 oid,
+                                 cid,
+                                 member_account_id,
+                                 member_state,
+                                 sid=0):
+        """Sets the Channel member state for a given account.
+        'member_state' can be one of the following:
+        'a' (admin), 'm' (member), 'o' (owner), 'b' (blocked).
+        """
+        if not sid:
+            sid = self._current_session
+        return self._run(method="NewChannelMemberState",
+                         SessionID=sid,
+                         OrgID=oid,
+                         ChannelID=cid,
+                         MemberAccountID=member_account_id,
+                         MemberState=member_state,
+                         )
+
     def close(self, sid=0):
         """Closes a session and cleanly finishes any long running operations.
         It could be seen as a logout. Returns 'null'.
@@ -634,9 +681,12 @@ class Flow(object):
             sid = self._current_session
         self.sessions[sid].close()
         del self.sessions[sid]
-        # TODO: for some reason 'Close' fails with error
+        # TODO: 'Close' fails with error
         # "Caused by <class 'socket.error'>:
         # [Errno 104] Connection reset by peer"
+        # because of two possible scenarios:
+        # loop thread is blocked in a wait_for_notification call
+        # or flowappglue is not running anymore.
         try:
             response = self._run(method="Close",
                                  SessionID=sid,
