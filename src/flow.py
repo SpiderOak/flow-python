@@ -77,15 +77,15 @@ class Flow(object):
             if not isinstance(changes, list):
                 changes = [changes]
             for change in changes:
-                if change and "Type" in change \
-                   and change["Type"] in self.callbacks:
+                if change and "type" in change \
+                   and change["type"] in self.callbacks:
                     # This check should leave the queue with
                     # an approximate size of _MAX_QUEUE_SIZE
                     if self.notification_queue.qsize() > self._MAX_QUEUE_SIZE:
                         notification = self.notification_queue.get()
                         self.flow._print_debug(
                             "Queue is full: ignoring notification '%s'" %
-                            notification["Data"])
+                            notification["data"])
                     self.notification_queue.put(change)
 
         def _notification_loop(self):
@@ -114,12 +114,12 @@ class Flow(object):
                         block=True, timeout=timeout_secs)
                 try:
                     self.callback_lock.acquire()
-                    self.callbacks[notification["Type"]](
-                        notification["Data"])
+                    self.callbacks[notification["type"]](
+                        notification["data"])
                 except KeyError:
                     self.flow._print_debug(
                         "Notification of type '%s' not supported." %
-                        notification["Type"])
+                        notification["type"])
                 except Exception as exception:
                     self.flow._print_debug(
                         "Error: %s" % str(exception))
@@ -290,7 +290,7 @@ class Flow(object):
         notification_name : string, type of the notification.
         callback : function object that receives a string as argument.
         Upon callback execution, the string argument of the callback
-        will contain the "Data" section of the notification.
+        will contain the "data" section of the notification.
         """
         if not sid:
             sid = self._current_session
@@ -391,9 +391,10 @@ class Flow(object):
             totpverifier="",
             sid=0):
         """Creates an account with the specified data.
-        'PhoneNumber', along with 'EmailAddress' and 'ServerURI'
-        (these last two provided at 'NewSession') must be unique.
-        It also starts the notification loop.
+        'phone_number', along with 'username' and 'server_uri'
+        (these last two provided at 'start_up') must be unique.
+        This call also starts the notification
+        loop for this session.
         Returns 'null'.
         """
         if not sid:

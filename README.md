@@ -35,10 +35,10 @@ from flow import Flow
 flow = Flow('your-flow-username')
 
 def print_message(data):
-    regular_messages = data["RegularMessages"]
+    regular_messages = data["regularMessages"]
     for message in regular_messages:
         print("Got message '%s' from ChannelID='%s'" %
-              (message["Text"], message["ChannelID"]))
+              (message["text"], message["channelId"]))
 
 # Here we register our callback to be executed when we receive a message
 flow.register_callback(Flow.MESSAGE_NOTIFICATION, print_message)
@@ -58,12 +58,13 @@ except:
 
 ## TODO
 
-- Implement remaining Flow API methods (e.g. `enumerate_peer_verifications`, `new_channel`, etc.).
+- Implement remaining Flow API methods (e.g. `enumerate_peer_verifications`, `device_id`, etc.).
 - Add remaining notification types (e.g. `Flow.ORG_MEMBER_NOTIFICATION`, etc.).
 - Document all arguments of the Flow API. 
-- Document Flow dict objects that are returned on many of the methods.
+- Document Flow dict objects that are returned on many of the methods. Or find a better way to return these (objects vs dicts?).
 - Unit Testing the flow module.
 - It has support for multiple sessions but this hasn't been tested yet.
 - (*) Find a way to save this pain from the user.
 - Remove unnecessary args in Flow's `__init__()`.
 - See other TODOs in source code.
+
