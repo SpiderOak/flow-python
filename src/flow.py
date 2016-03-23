@@ -619,7 +619,7 @@ class Flow(object):
                          )
 
     def get_peer(self, username, sid=0):
-        """Returns all the metadata of a peer for this user.
+        """Returns all the metadata of a peer from username.
         Returns a 'Peer' dict.
         """
         if not sid:
@@ -627,6 +627,17 @@ class Flow(object):
         return self._run(method="GetPeer",
                          SessionID=sid,
                          PeerEmailAddress=username,
+                         )
+
+    def get_peer_from_id(self, account_id, sid=0):
+        """Returns all the metadata of a peer from account id.
+        Returns a 'Peer' dict.
+        """
+        if not sid:
+            sid = self._current_session
+        return self._run(method="GetPeerFromID",
+                         SessionID=sid,
+                         PeerID=account_id,
                          )
 
     def enumerate_local_accounts(self):
