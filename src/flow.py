@@ -376,7 +376,7 @@ class Flow(object):
             sid = self._current_session
         self._run(method="StartUp",
                   SessionID=sid,
-                  EmailAddress=username,
+                  Username=username,
                   ServerURI=server_uri,
                   )
         self.sessions[sid].start_notification_loop()
@@ -403,7 +403,7 @@ class Flow(object):
                              SessionID=sid,
                              PhoneNumber=phone_number,
                              DeviceName=device_name,
-                             EmailAddress=username,
+                             Username=username,
                              ServerURI=server_uri,
                              Password=password,
                              TotpVerifier=totpverifier,
@@ -428,7 +428,7 @@ class Flow(object):
             sid = self._current_session
         response = self._run(method="CreateDevice",
                              SessionID=sid,
-                             EmailAddress=username,
+                             Username=username,
                              ServerURI=server_uri,
                              DeviceName=device_name,
                              Password=password,
@@ -626,7 +626,7 @@ class Flow(object):
             sid = self._current_session
         return self._run(method="GetPeer",
                          SessionID=sid,
-                         PeerEmailAddress=username,
+                         PeerUsername=username,
                          )
 
     def get_peer_from_id(self, account_id, sid=0):
