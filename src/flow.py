@@ -383,11 +383,13 @@ class Flow(object):
 
     def create_account(
             self,
-            phone_number,
-            device_name,
             username,
             server_uri,
             password,
+            device_name,
+            platform,
+            os_release,
+            phone_number,
             totpverifier="",
             sid=0):
         """Creates an account with the specified data.
@@ -405,6 +407,8 @@ class Flow(object):
                              DeviceName=device_name,
                              Username=username,
                              ServerURI=server_uri,
+                             Platform=platform,
+                             OSRelease=os_release,
                              Password=password,
                              TotpVerifier=totpverifier,
                              )
