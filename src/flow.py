@@ -689,6 +689,70 @@ class Flow(object):
                          MemberState=member_state,
                          )
 
+    def get_devices(self, sid=0):
+        """Returns all devices associated to the current account.
+        Returns a list of 'Device' dicts.
+        """
+        if not sid:
+            sid = self._current_session
+        return self._run(method="GetDevices",
+                         SessionID=sid,
+                         )
+
+    def start_d2d_rendezvous(self, sid=0):
+        """StartD2DRendezvous generates a 32 random bytes for usage as a
+        rendezvous ID in device to device provsioning and a key pair for DH.
+        It returns the 32 random bytes for them to be shared in some way
+        Only the established devices use this method.
+        Returns string with the rendezvous ID.
+        """
+        if not sid:
+            sid = self._current_session
+        return self._run(method="StartD2DRendezvous",
+                         SessionID=sid,
+                         )
+
+    def provision_new_device(self, sid=0):
+        """ProvisionNewDevice pushes the provisioning payload for
+        a new device to be created from it.
+        Only the established device uses this after calling StartD2DRendezvous.
+        Returns 'null'.
+        """
+        if not sid:
+            sid = self._current_session
+        return self._run(method="ProvisionNewDevice",
+                         SessionID=sid,
+                         )
+
+    def create_device_from_rendezvous(self,
+                                      rendezvous_id,
+                                      device_name,
+                                      platform,
+                                      os_release,
+                                      sid=0):
+        """CreateDeviceFromRendezvous creates a new device by downloading a
+        provisioning payload using the rendezvousID.
+        Only the new device uses this method.
+        Returns 'null'.
+        """
+        if not sid:
+            sid = self._current_session
+        return self._run(method="CreateDeviceFromRendezvous",
+                         SessionID=sid,
+                         RendezvousID=rendezvous_id,
+                         DeviceName=device_name,
+                         Platform=platform,
+                         OSRelease=os_release,
+                         )
+
+    def cancel_rendezvous(self, sid=0):
+        """CancelRendezvous tries cancelling an ongoing rendezvous, if any."""
+        if not sid:
+            sid = self._current_session
+        self._run(method="CancelRendezvous",
+                  SessionID=sid,
+                  )
+
     def close(self, sid=0):
         """Closes a session and cleanly finishes any long running operations.
         It could be seen as a logout. Returns 'null'.
