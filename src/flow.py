@@ -23,6 +23,8 @@ class Flow(object):
     CHANNEL_NOTIFICATION = "channel"
     MESSAGE_NOTIFICATION = "message"
     CHANNEL_MEMBER_NOTIFICATION = "channel-member-event"
+    ORG_MEMBER_NOTIFICATION = "org-member-event"
+    ORG_JOIN_REQUEST_NOTIFICATION = "org-join-request"
 
     class _Session(object):
         """Internal class to hold session data."""
@@ -88,9 +90,18 @@ class Flow(object):
                             notification["data"])
                     self.notification_queue.put(change)
 
+        @staticmethod
+        def _main_thread_alive():
+            """Returns whether the main thread is still running or not."""
+            for thread_i in threading.enumerate():
+                if thread_i.name == "MainThread":
+                    return thread_i.is_alive()
+            return False
+
         def _notification_loop(self):
             """Loops calling WaitForNotification on this session."""
-            while self.listen_notifications.is_set():
+            while self._main_thread_alive() and \
+                    self.listen_notifications.is_set():
                 try:
                     changes = self.flow.wait_for_notification(self.sid)
                     self.callback_lock.acquire()
@@ -150,7 +161,7 @@ class Flow(object):
                  db_dir="",
                  schema_dir="",
                  attachment_dir="",
-                 use_tls="true"):
+                 use_tls=""):
         """Initializes the Flow object. It starts and configures
         flowappglue local server as a subprocess.
         It also starts a new session so that you can start using
@@ -253,7 +264,7 @@ class Flow(object):
             db_dir="",
             schema_dir="",
             attachment_dir="",
-            use_tls="true"):
+            use_tls=""):
         """Sets up the basic configuration parameters for FlowApp
         to talk FlowServ and create local accounts.
         If arguments are empty, then it will try to determine the
@@ -270,6 +281,8 @@ class Flow(object):
             schema_dir = definitions.get_default_schema_path()
         if not attachment_dir:
             attachment_dir = definitions.get_default_attachment_path()
+        if not use_tls:
+            use_tls = definitions.DEFAULT_USE_TLS
         self._check_file_exists(schema_dir)
         self._check_file_exists(db_dir, True)
         self._check_file_exists(attachment_dir, True)
@@ -411,6 +424,7 @@ class Flow(object):
                              OSRelease=os_release,
                              Password=password,
                              TotpVerifier=totpverifier,
+                             NotifyToken="",
                              )
         self.sessions[sid].start_notification_loop()
         return response
@@ -505,7 +519,22 @@ class Flow(object):
                          ChannelID=cid,
                          )
 
-    def send_message(self, oid, cid, msg, other_data=None, sid=0):
+    def new_attachment(self, oid, file_path, sid=0):
+        """Returns an 'Attachment' dict ready to be used on send_message().
+        file_path must be the absolute path.
+        """
+        if not sid:
+            sid = self._current_session
+        aid = self._run(method="NewAttachment",
+                        SessionID=sid,
+                        OrgID=oid,
+                        FilePath=file_path,
+                        )
+        file_basename = os.path.basename(file_path)
+        return {"AttachmentPubID": aid, "FileName": file_basename}
+
+    def send_message(self, oid, cid, msg, attachments=None,
+                     other_data=None, sid=0):
         """Sends a message to a channel this user is a member of.
         Returns a string that represents the 'MessageID'
         that has just been sent.
@@ -518,6 +547,7 @@ class Flow(object):
                          ChannelID=cid,
                          Text=msg,
                          OtherData=other_data,
+                         Attachments=attachments,
                          )
 
     def wait_for_notification(self, sid=0):
@@ -651,6 +681,16 @@ class Flow(object):
         return self._run(method="EnumerateLocalAccounts",
                          )
 
+    def enumerate_peer_accounts(self, sid=0):
+        """Lists all the peer accounts.
+        Returns an array of 'Peer' dicts.
+        """
+        if not sid:
+            sid = self._current_session
+        return self._run(method="EnumeratePeerAccounts",
+                         SessionID=sid,
+                         )
+
     def new_org_member_state(self,
                              oid,
                              member_account_id,
@@ -751,6 +791,26 @@ class Flow(object):
             sid = self._current_session
         self._run(method="CancelRendezvous",
                   SessionID=sid,
+                  )
+
+    @staticmethod
+    def get_profile_item_json(display_name, biography, photo):
+        """Create 'Content' JSON to be used by set_profile()."""
+        content = json.dumps(dict(
+            displayName=display_name,
+            biography=biography,
+            photo=photo,
+        ))
+        return content
+
+    def set_profile(self, item, content, sid=0):
+        """CancelRendezvous tries cancelling an ongoing rendezvous, if any."""
+        if not sid:
+            sid = self._current_session
+        self._run(method="SetProfile",
+                  SessionID=sid,
+                  Content=content,
+                  Item=item,
                   )
 
     def close(self, sid=0):
