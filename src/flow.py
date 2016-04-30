@@ -456,7 +456,15 @@ class Flow(object):
         self.sessions[sid].start_notification_loop()
         return response
 
-    def new_org(self, name, discoverable, sid=0):
+    def account_id(self, sid=0):
+        """Returns the accountId for this account."""
+        if not sid:
+            sid = self._current_session
+        return self._run(method="AccountId",
+                         SessionID=sid,
+                         )
+
+    def new_org(self, name, discoverable=True, sid=0):
         """Creates a new organization. Returns an 'Org' dict."""
         if not sid:
             sid = self._current_session
@@ -812,6 +820,16 @@ class Flow(object):
                   Content=content,
                   Item=item,
                   )
+
+    def identifier(self, sid=0):
+        """Identifier returns the Username and ServerURI for this account.
+        Returns an 'AccountIdentifier' dict.
+        """
+        if not sid:
+            sid = self._current_session
+        return self._run(method="Identifier",
+                         SessionID=sid,
+                         )
 
     def close(self, sid=0):
         """Closes a session and cleanly finishes any long running operations.
