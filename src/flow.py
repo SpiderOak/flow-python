@@ -3,7 +3,6 @@ Flow Synchronous API Python Module.
 All Flow API responses are represented with Python dicts.
 """
 
-import sys
 import subprocess
 import json
 import requests
@@ -11,6 +10,12 @@ import threading
 import Queue
 import definitions
 import os
+import string
+import random
+import logging
+
+
+LOG = logging.getLogger("flow")
 
 
 class Flow(object):
@@ -22,9 +27,12 @@ class Flow(object):
     ORG_NOTIFICATION = "org"
     CHANNEL_NOTIFICATION = "channel"
     MESSAGE_NOTIFICATION = "message"
+    HWM_NOTIFICATION = "hwm"
     CHANNEL_MEMBER_NOTIFICATION = "channel-member-event"
     ORG_MEMBER_NOTIFICATION = "org-member-event"
     ORG_JOIN_REQUEST_NOTIFICATION = "org-join-request"
+    PEER_VERIFICATION_NOTIFICATION = "peer-verification"
+    PROFILE_NOTIFICATION = "profile"
 
     class _Session(object):
         """Internal class to hold session data."""
@@ -85,8 +93,8 @@ class Flow(object):
                     # an approximate size of _MAX_QUEUE_SIZE
                     if self.notification_queue.qsize() > self._MAX_QUEUE_SIZE:
                         notification = self.notification_queue.get()
-                        self.flow._print_debug(
-                            "Queue is full: ignoring notification '%s'" %
+                        LOG.warn(
+                            "Queue is full: ignoring notification '%s'",
                             notification["data"])
                     self.notification_queue.put(change)
 
@@ -126,14 +134,13 @@ class Flow(object):
                 try:
                     self.callback_lock.acquire()
                     self.callbacks[notification["type"]](
-                        notification["data"])
+                        notification["type"], notification["data"])
                 except KeyError:
-                    self.flow._print_debug(
-                        "Notification of type '%s' not supported." %
+                    LOG.debug(
+                        "Notification of type '%s' not supported.",
                         notification["type"])
                 except Exception as exception:
-                    self.flow._print_debug(
-                        "Error: %s" % str(exception))
+                    LOG.debug("Error: %s", str(exception))
                 finally:
                     self.callback_lock.release()
                 notification_consumed = True
@@ -155,7 +162,6 @@ class Flow(object):
                  username="",
                  server_uri="",
                  flowappglue="",
-                 debug=False,
                  host="",
                  port="",
                  db_dir="",
@@ -173,7 +179,6 @@ class Flow(object):
         if empty, then it tries to determine the location.
         debug : boolean.
         """
-        self.debug = debug
         if not flowappglue:
             flowappglue = definitions.get_default_flowappglue_path()
         self._check_file_exists(flowappglue)
@@ -203,11 +208,18 @@ class Flow(object):
         for sid in sids:
             self.close(sid)
 
-    def _print_debug(self, msg):
-        """Prints msg debug strings to stdout (if self.debug is True)"""
-        if self.debug:
-            print(msg.encode('utf-8'))
-            sys.stdout.flush()
+    @staticmethod
+    def gen_rand_req_id():
+        """Generate a 10-byte random id for debugging."""
+        return "".join(
+            random.choice(string.ascii_uppercase + string.digits)
+            for _ in range(10))
+
+    def _get_session_id(self, sid):
+        """Utility function to return the current
+        session if sid is not provided.
+        """
+        return sid if sid else self._current_session
 
     def _run(self, method, **params):
         """Performs the HTTP JSON POST against
@@ -222,8 +234,12 @@ class Flow(object):
             dict(
                 method=method,
                 params=[params],
-                token=self._token))
-        self._print_debug("request: %s" % request_str)
+                token=self._token),
+            indent=2)
+        rand_debug_req_id = self.gen_rand_req_id()
+        LOG.debug(
+            "request method=%s id=%s: %s",
+            method, rand_debug_req_id, request_str)
         try:
             response = requests.post(
                 "http://localhost:%s/rpc" %
@@ -234,9 +250,10 @@ class Flow(object):
                 requests.exceptions.Timeout) as flow_err:
             raise Flow.FlowError(str(flow_err))
         response_data = json.loads(response.text, encoding='utf-8')
-        self._print_debug(
-            "response: HTTP %s : %s" %
-            (response.status_code, response.text))
+        LOG.debug(
+            "response method=%s id=%s: HTTP %s, lat=%.2fs: %s",
+            method, rand_debug_req_id, response.status_code,
+            response.elapsed.total_seconds(), response.text)
         if "error" in response_data.keys() and len(response_data["error"]) > 0:
             raise Flow.FlowError(response_data["error"])
         if "result" in response_data.keys():
@@ -305,8 +322,7 @@ class Flow(object):
         Upon callback execution, the string argument of the callback
         will contain the "data" section of the notification.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         self.sessions[sid].register_callback(notification_name, callback)
 
     def unregister_callback(self, notification_name, sid=0):
@@ -316,8 +332,7 @@ class Flow(object):
         sid : int, SessionID
         notification_name : string, type of the notification.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         self.sessions[sid].unregister_callback(notification_name)
 
     def process_one_notification(self, timeout_secs=0.05, sid=0):
@@ -329,8 +344,7 @@ class Flow(object):
         timeout_secs : float, seconds to block on the notification queue.
         sid : int, SessionI.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self.sessions[sid].consume_notification(timeout_secs)
 
     def set_processing_notifications(self, value=True):
@@ -348,8 +362,7 @@ class Flow(object):
         timeout_secs : float, seconds to block on the notification queue.
         sid : int, SessionID
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         self._loop_process_notifications = True
         while self._loop_process_notifications:
             self.sessions[sid].consume_notification(timeout_secs)
@@ -385,8 +398,7 @@ class Flow(object):
         """
         if not server_uri:
             server_uri = definitions.DEFAULT_URI
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         self._run(method="StartUp",
                   SessionID=sid,
                   Username=username,
@@ -412,8 +424,7 @@ class Flow(object):
         loop for this session.
         Returns 'null'.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         response = self._run(method="CreateAccount",
                              SessionID=sid,
                              PhoneNumber=phone_number,
@@ -442,8 +453,7 @@ class Flow(object):
         It also starts the notification loop (like create_account).
         Returns a 'Device' dict.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         response = self._run(method="CreateDevice",
                              SessionID=sid,
                              Username=username,
@@ -458,16 +468,14 @@ class Flow(object):
 
     def account_id(self, sid=0):
         """Returns the accountId for this account."""
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="AccountId",
                          SessionID=sid,
                          )
 
     def new_org(self, name, discoverable=True, sid=0):
         """Creates a new organization. Returns an 'Org' dict."""
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="NewOrg",
                          SessionID=sid,
                          Name=name,
@@ -478,8 +486,7 @@ class Flow(object):
         """Creates a new channel in a specific 'OrgID'.
         Returns a string that represents the `ChannelID` created.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="NewChannel",
                          SessionID=sid,
                          OrgID=oid,
@@ -490,16 +497,14 @@ class Flow(object):
         """Lists all the orgs the caller is a member of.
         Returns array of 'Org' dicts.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="EnumerateOrgs",
                          SessionID=sid,
                          )
 
     def enumerate_org_members(self, oid, sid=0):
         """Lists all members for an org and their state."""
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="EnumerateOrgMembers",
                          SessionID=sid,
                          OrgID=oid,
@@ -509,8 +514,7 @@ class Flow(object):
         """Lists the channels available for an 'OrgID'.
         Returns an array of 'Channel' dicts.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="EnumerateChannels",
                          SessionID=sid,
                          OrgID=oid,
@@ -520,8 +524,7 @@ class Flow(object):
         """Lists the channel members for a given 'ChannelID'.
         Returns an array of 'ChannelMember' dicts.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="EnumerateChannelMembers",
                          SessionID=sid,
                          ChannelID=cid,
@@ -531,8 +534,7 @@ class Flow(object):
         """Returns an 'Attachment' dict ready to be used on send_message().
         file_path must be the absolute path.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         aid = self._run(method="NewAttachment",
                         SessionID=sid,
                         OrgID=oid,
@@ -547,8 +549,7 @@ class Flow(object):
         Returns a string that represents the 'MessageID'
         that has just been sent.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="SendMessage",
                          SessionID=sid,
                          OrgID=oid,
@@ -566,18 +567,16 @@ class Flow(object):
         It's advised to call this method in a thread outside of
         the main one. Returns a 'Change' dict.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="WaitForNotification",
                          SessionID=sid,
                          )
 
-    def enumerate_messages(self, oid, cid, filters={}, sid=0):
+    def enumerate_messages(self, oid, cid, filters=None, sid=0):
         """Lists all the messages for a channel.
         Returns an array of 'Message' dicts.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="EnumerateMessages",
                          SessionID=sid,
                          OrgID=oid,
@@ -589,8 +588,7 @@ class Flow(object):
         """Returns all the metadata for a channel the user is a member of.
         Returns a 'Channel' dict.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="GetChannel",
                          SessionID=sid,
                          ChannelID=cid,
@@ -600,8 +598,7 @@ class Flow(object):
         """Creates a new request to join an existing organization.
         Returns 'null'.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="NewOrgJoinRequest",
                          SessionID=sid,
                          OrgID=oid,
@@ -611,8 +608,7 @@ class Flow(object):
         """Lists all the join requests for an 'OrgID'.
         Returns an array of 'OrgJoinRequest' dicts.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="EnumerateOrgJoinRequests",
                          SessionID=sid,
                          OrgID=oid,
@@ -624,8 +620,7 @@ class Flow(object):
         'member_state' argument valid values are
         'm' (member), 'a' (admin), 'o' (owner), 'b' blocked.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="OrgAddMember",
                          SessionID=sid,
                          OrgID=oid,
@@ -637,8 +632,7 @@ class Flow(object):
         """Adds the specified member to the channel as long as
         the requestor has the right permissions. Returns 'null'.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="ChannelAddMember",
                          SessionID=sid,
                          OrgID=oid,
@@ -652,8 +646,7 @@ class Flow(object):
         direct conversation with another user.
         Returns a 'ChannelID'.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="NewDirectConversation",
                          SessionID=sid,
                          OrgID=oid,
@@ -664,8 +657,7 @@ class Flow(object):
         """Returns all the metadata of a peer from username.
         Returns a 'Peer' dict.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="GetPeer",
                          SessionID=sid,
                          PeerUsername=username,
@@ -675,8 +667,7 @@ class Flow(object):
         """Returns all the metadata of a peer from account id.
         Returns a 'Peer' dict.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="GetPeerFromID",
                          SessionID=sid,
                          PeerID=account_id,
@@ -693,8 +684,7 @@ class Flow(object):
         """Lists all the peer accounts.
         Returns an array of 'Peer' dicts.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="EnumeratePeerAccounts",
                          SessionID=sid,
                          )
@@ -708,8 +698,7 @@ class Flow(object):
         'member_state' can be one of the following:
         'a' (admin), 'm' (member), 'o' (owner), 'b' (blocked).
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="NewOrgMemberState",
                          SessionID=sid,
                          OrgID=oid,
@@ -727,8 +716,7 @@ class Flow(object):
         'member_state' can be one of the following:
         'a' (admin), 'm' (member), 'o' (owner), 'b' (blocked).
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="NewChannelMemberState",
                          SessionID=sid,
                          OrgID=oid,
@@ -741,8 +729,7 @@ class Flow(object):
         """Returns all devices associated to the current account.
         Returns a list of 'Device' dicts.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="GetDevices",
                          SessionID=sid,
                          )
@@ -754,8 +741,7 @@ class Flow(object):
         Only the established devices use this method.
         Returns string with the rendezvous ID.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="StartD2DRendezvous",
                          SessionID=sid,
                          )
@@ -766,8 +752,7 @@ class Flow(object):
         Only the established device uses this after calling StartD2DRendezvous.
         Returns 'null'.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="ProvisionNewDevice",
                          SessionID=sid,
                          )
@@ -783,8 +768,7 @@ class Flow(object):
         Only the new device uses this method.
         Returns 'null'.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="CreateDeviceFromRendezvous",
                          SessionID=sid,
                          RendezvousID=rendezvous_id,
@@ -795,8 +779,7 @@ class Flow(object):
 
     def cancel_rendezvous(self, sid=0):
         """CancelRendezvous tries cancelling an ongoing rendezvous, if any."""
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         self._run(method="CancelRendezvous",
                   SessionID=sid,
                   )
@@ -813,8 +796,7 @@ class Flow(object):
 
     def set_profile(self, item, content, sid=0):
         """CancelRendezvous tries cancelling an ongoing rendezvous, if any."""
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         self._run(method="SetProfile",
                   SessionID=sid,
                   Content=content,
@@ -825,18 +807,48 @@ class Flow(object):
         """Identifier returns the Username and ServerURI for this account.
         Returns an 'AccountIdentifier' dict.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         return self._run(method="Identifier",
                          SessionID=sid,
+                         )
+
+    def peer_data(self, sid=0):
+        """Returns 'Peer' dict for this account."""
+        sid = self._get_session_id(sid)
+        return self._run(method="PeerData",
+                         )
+
+    def verify_peer_keyring(self,
+                            username,
+                            account_id,
+                            keyring_id,
+                            verification_method,
+                            sid=0):
+        """Peer Key Verification for web of trust."""
+        sid = self._get_session_id(sid)
+        return self._run(method="VerifyPeerKeyRing",
+                         SessionID=sid,
+                         PeerUsername=username,
+                         PeerAccountID=account_id,
+                         PeerKeyRingID=keyring_id,
+                         VerificationMethod=verification_method,
+                         )
+
+    def set_channel_read_hwm(self, oid, cid, mid, sid=0):
+        """Sets a new HWM for an account in a channel. Returns 'null'."""
+        sid = self._get_session_id(sid)
+        return self._run(method="SetChannelReadHWM",
+                         SessionID=sid,
+                         OrgID=oid,
+                         ChannelID=cid,
+                         MessageID=mid,
                          )
 
     def close(self, sid=0):
         """Closes a session and cleanly finishes any long running operations.
         It could be seen as a logout. Returns 'null'.
         """
-        if not sid:
-            sid = self._current_session
+        sid = self._get_session_id(sid)
         self.sessions[sid].close()
         del self.sessions[sid]
         # TODO: 'Close' fails with error
@@ -850,6 +862,6 @@ class Flow(object):
                                  SessionID=sid,
                                  )
         except Exception as exception:
-            self._print_debug("%s" % str(exception))
+            LOG.debug("%s", str(exception))
             response = "null"
         return response

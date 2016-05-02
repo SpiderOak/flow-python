@@ -34,8 +34,8 @@ from flow import Flow
 
 flow = Flow('your-flow-username')
 
-def print_message(data):
-    regular_messages = data["regularMessages"]
+def print_message(notif_type, notif_data):
+    regular_messages = notif_data["regularMessages"]
     for message in regular_messages:
         print("Got message '%s' from ChannelID='%s'" %
               (message["text"], message["channelId"]))
