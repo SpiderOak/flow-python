@@ -33,6 +33,14 @@ class Flow(object):
     ORG_JOIN_REQUEST_NOTIFICATION = "org-join-request"
     PEER_VERIFICATION_NOTIFICATION = "peer-verification"
     PROFILE_NOTIFICATION = "profile"
+    UPLOAD_START = "upload-start-event"
+    UPLOAD_PROGRESS = "upload-progress-event"
+    UPLOAD_COMPLETE = "upload-complete-event"
+    UPLOAD_ERROR = "upload-error-event"
+    DOWNLOAD_START = "download-start-event"
+    DOWNLOAD_PROGRESS = "download-progress-event"
+    DOWNLOAD_COMPLETE = "download-complete-event"
+    DOWNLOAD_ERROR = "download-error-event"
 
     class _Session(object):
         """Internal class to hold session data."""
@@ -541,7 +549,19 @@ class Flow(object):
                         FilePath=file_path,
                         )
         file_basename = os.path.basename(file_path)
-        return {"AttachmentPubID": aid, "FileName": file_basename}
+        return {"id": aid, "filename": file_basename}
+
+    def start_attachment_download(self, aid, oid, cid, mid, sid=0):
+        """
+        """
+        sid = self._get_session_id(sid)
+        self._run(method="StartAttachmentDownload",
+                        SessionID=sid,
+                        AttachmentID=aid,
+                        OrgID=oid,
+                        ChannelID=cid,
+                        MessageID=mid,
+                        )
 
     def send_message(self, oid, cid, msg, attachments=None,
                      other_data=None, sid=0):
