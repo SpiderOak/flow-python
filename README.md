@@ -55,6 +55,7 @@ flow.process_notifications()
   - `Flow.start_up  # This starts an already logged-in account`
   - `Flow.create_account  # This creates a new account`
   - `Flow.create_device  # This creates a new device for an existing account`
+- `Flow` methods raise `Flow.FlowError` if something went wrong. 
 
 ## TODO
 
