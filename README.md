@@ -22,9 +22,6 @@ flow = Flow('your-flow-username')
 
 # Print user's organizations
 print(flow.enumerate_orgs())
-
-# Your application must make sure to call terminate when done with the flow object
-flow.terminate()
 ```
 
 Here's a script that listens for messages and prints them to stdout:
@@ -43,28 +40,29 @@ def print_message(notif_type, notif_data):
 # Here we register our callback to be executed when we receive a message
 flow.register_callback(Flow.MESSAGE_NOTIFICATION, print_message)
 
-try:
-    # Once you registered all your callbacks, all you have to do is loop.
-    flow.process_notifications()
-except:
-    flow.terminate()
+# Once you registered all your callbacks, all you have to do is loop.
+flow.process_notifications()
 ```
 
 ## Comments
 
 - If you intend to use one of the examples above, 'your-flow-username' should already be logged-in in your device.
-- The app is responsible for calling `Flow.terminate()` before it quits. This is needed because the Flow module starts a separate local server process (semaphor-backend) and a separate thread to listen for notifications, `Flow.terminate()` cleans everything up. (*)
 - An application should use a single instance of `flow.Flow`.
+- Use `logging.getLogger("flow")` to configure the log level for the module.
+- By default, local databases and `semaphor-backend` output are located under `~/.config/semaphor`, you can override this on `Flow` init (`db_dir`).
+- `Flow` init starts the `semaphor-backend` as a subprocess.
+- To start using `Flow` with an account you must use only one of these three API: (the three methods start the notification loop that listens from incoming events from the server)
+  - `Flow.start_up  # This starts an already logged-in account`
+  - `Flow.create_account  # This creates a new account`
+  - `Flow.create_device  # This creates a new device for an existing account`
 
 ## TODO
 
-- Implement remaining Flow API methods (e.g. `enumerate_peer_verifications`, `device_id`, etc.).
-- Add remaining notification types (e.g. `Flow.ORG_MEMBER_NOTIFICATION`, etc.).
+- Implement remaining Flow API methods.
 - Document all arguments of the Flow API. 
 - Document Flow dict objects that are returned on many of the methods. Or find a better way to return these (objects vs dicts?).
 - Unit Testing the flow module.
 - It has support for multiple sessions but this hasn't been tested yet.
-- (*) Find a way to save this pain from the user.
 - Remove unnecessary args in Flow's `__init__()`.
 - See other TODOs in source code.
 
