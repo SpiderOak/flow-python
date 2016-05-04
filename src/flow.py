@@ -13,6 +13,7 @@ import os
 import string
 import random
 import logging
+import time
 
 
 LOG = logging.getLogger("flow")
@@ -33,14 +34,14 @@ class Flow(object):
     ORG_JOIN_REQUEST_NOTIFICATION = "org-join-request"
     PEER_VERIFICATION_NOTIFICATION = "peer-verification"
     PROFILE_NOTIFICATION = "profile"
-    UPLOAD_START = "upload-start-event"
-    UPLOAD_PROGRESS = "upload-progress-event"
-    UPLOAD_COMPLETE = "upload-complete-event"
-    UPLOAD_ERROR = "upload-error-event"
-    DOWNLOAD_START = "download-start-event"
-    DOWNLOAD_PROGRESS = "download-progress-event"
-    DOWNLOAD_COMPLETE = "download-complete-event"
-    DOWNLOAD_ERROR = "download-error-event"
+    UPLOAD_START_NOTIFICATION = "upload-start-event"
+    UPLOAD_PROGRESS_NOTIFICATION = "upload-progress-event"
+    UPLOAD_COMPLETE_NOTIFICATION = "upload-complete-event"
+    UPLOAD_ERROR_NOTIFICATION = "upload-error-event"
+    DOWNLOAD_START_NOTIFICATION = "download-start-event"
+    DOWNLOAD_PROGRESS_NOTIFICATION = "download-progress-event"
+    DOWNLOAD_COMPLETE_NOTIFICATION = "download-complete-event"
+    DOWNLOAD_ERROR_NOTIFICATION = "download-error-event"
 
     class _Session(object):
         """Internal class to hold session data."""
@@ -60,6 +61,7 @@ class Flow(object):
             self.notification_thread = threading.Thread(
                 target=self._notification_loop,
                 args=())
+            self.notification_thread.daemon = True
             self.callback_lock = threading.Lock()
 
         def start_notification_loop(self):
@@ -190,8 +192,16 @@ class Flow(object):
         if not flowappglue:
             flowappglue = definitions.get_default_flowappglue_path()
         self._check_file_exists(flowappglue)
-        self._flowappglue = subprocess.Popen(
-            [flowappglue, "0"], stdout=subprocess.PIPE)
+        if not db_dir:
+            db_dir = definitions.get_default_db_path()
+        flowappglue_output_file_name = os.path.join(
+            db_dir,
+            time.strftime("semaphor_backend_%Y%m%d%H%M%S.log"))
+        with open(flowappglue_output_file_name, "w") as log_file:
+            self._flowappglue = subprocess.Popen(
+                [flowappglue, "0"],
+                stdout=subprocess.PIPE,
+                stderr=log_file)
         token_port_line = json.loads(self._flowappglue.stdout.readline())
         self._token = token_port_line["token"]
         self._port = token_port_line["port"]
@@ -552,16 +562,17 @@ class Flow(object):
         return {"id": aid, "filename": file_basename}
 
     def start_attachment_download(self, aid, oid, cid, mid, sid=0):
-        """
+        """Requests download of an attachment.
+        Status will be reported on the notification channel.
         """
         sid = self._get_session_id(sid)
         self._run(method="StartAttachmentDownload",
-                        SessionID=sid,
-                        AttachmentID=aid,
-                        OrgID=oid,
-                        ChannelID=cid,
-                        MessageID=mid,
-                        )
+                  SessionID=sid,
+                  AttachmentID=aid,
+                  OrgID=oid,
+                  ChannelID=cid,
+                  MessageID=mid,
+                  )
 
     def send_message(self, oid, cid, msg, attachments=None,
                      other_data=None, sid=0):
