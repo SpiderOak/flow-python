@@ -194,6 +194,7 @@ class Flow(object):
         self._check_file_exists(flowappglue)
         if not db_dir:
             db_dir = definitions.get_default_db_path()
+        self._check_file_exists(db_dir, True)
         flowappglue_output_file_name = os.path.join(
             db_dir,
             time.strftime("semaphor_backend_%Y%m%d%H%M%S.log"))
