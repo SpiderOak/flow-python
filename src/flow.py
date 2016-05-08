@@ -781,7 +781,10 @@ class Flow(object):
     def provision_new_device(self, sid=0):
         """ProvisionNewDevice pushes the provisioning payload for
         a new device to be created from it.
-        Only the established device uses this after calling StartD2DRendezvous.
+        Only the established device uses this after
+        calling StartD2DRendezvous.
+        This call blocks the caller until the new
+        device creates the device.
         Returns 'null'.
         """
         sid = self._get_session_id(sid)
@@ -798,16 +801,20 @@ class Flow(object):
         """CreateDeviceFromRendezvous creates a new device by downloading a
         provisioning payload using the rendezvousID.
         Only the new device uses this method.
+        This call also starts the notification
+        loop for this session.
         Returns 'null'.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="CreateDeviceFromRendezvous",
-                         SessionID=sid,
-                         RendezvousID=rendezvous_id,
-                         DeviceName=device_name,
-                         Platform=platform,
-                         OSRelease=os_release,
-                         )
+        response = self._run(method="CreateDeviceFromD2D",
+                             SessionID=sid,
+                             RendezvousID=rendezvous_id,
+                             DeviceName=device_name,
+                             Platform=platform,
+                             OSRelease=os_release,
+                             )
+        self.sessions[sid].start_notification_loop()
+        return response
 
     def cancel_rendezvous(self, sid=0):
         """CancelRendezvous tries cancelling an ongoing rendezvous, if any."""
@@ -874,6 +881,33 @@ class Flow(object):
                          OrgID=oid,
                          ChannelID=cid,
                          MessageID=mid,
+                         )
+
+    def verification_hash(self,
+                          sid=0):
+        """Returns the verification hash for this account."""
+        sid = self._get_session_id(sid)
+        return self._run(method="VerificationHash",
+                         SessionID=sid,
+                         )
+
+    def peer_verification_hash(self,
+                               username,
+                               fingerprint,
+                               provided_hash,
+                               sid=0):
+        """Computes:
+        hash(username + separator + serverURI + separator + fingerprint)
+        for the specified account and compares it in constant time
+        with the provided hash.
+        Returns bool whether the hash is valid or not.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(method="PeerVerificationHash",
+                         SessionID=sid,
+                         PeerUsername=username,
+                         Fingerprint=fingerprint,
+                         ProvidedHash=provided_hash,
                          )
 
     def close(self, sid=0):
