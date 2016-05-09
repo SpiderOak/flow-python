@@ -434,6 +434,7 @@ class Flow(object):
             platform,
             os_release,
             phone_number,
+            email_confirm_code="",
             totpverifier="",
             sid=0):
         """Creates an account with the specified data.
@@ -454,6 +455,7 @@ class Flow(object):
                              OSRelease=os_release,
                              Password=password,
                              TotpVerifier=totpverifier,
+                             EmailConfirmCode=email_confirm_code,
                              NotifyToken="",
                              )
         self.sessions[sid].start_notification_loop()
@@ -908,6 +910,23 @@ class Flow(object):
                          PeerUsername=username,
                          Fingerprint=fingerprint,
                          ProvidedHash=provided_hash,
+                         )
+
+    def confirm_email(self,
+                      username,
+                      server_uri,
+                      sid=0):
+        """Sends a confirmation request to the server
+        The server will email a confirm code to the specified address
+        The caller should use the code as the 'email_confirm_code' argument
+        on 'create_account'.
+        Returns 'null'.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(method="ConfirmEmail",
+                         SessionID=sid,
+                         Username=username,
+                         ServerURI=server_uri,
                          )
 
     def close(self, sid=0):
