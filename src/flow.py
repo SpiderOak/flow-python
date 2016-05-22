@@ -57,6 +57,7 @@ class Flow(object):
             self.flow = flow
             self.callbacks = {}  # Notification Name -> Function Object
             self.notification_queue = Queue.Queue()
+            self.error_queue = Queue.Queue()
             self.listen_notifications = threading.Event()
             self.notification_thread = threading.Thread(
                 target=self._notification_loop,
@@ -88,6 +89,21 @@ class Flow(object):
             self.callbacks[notification_name] = callback
             self.callback_lock.release()
 
+        def _queue_error(self, error):
+            """Queues the notification error.
+            Arguments:
+            error : string.
+            """
+            # This check should leave the queue with
+            # an approximate size of _MAX_QUEUE_SIZE
+            if self.error_queue.qsize() > self._MAX_QUEUE_SIZE:
+                notification = self.error_queue.get()
+                LOG.warn(
+                    "Error queue is full: ignoring notification '%s'",
+                    notification["data"],
+                )
+                self.error_queue.put(error)
+
         def _queue_changes(self, changes):
             """Queues the changes of registered change types.
             Arguments:
@@ -104,29 +120,22 @@ class Flow(object):
                     if self.notification_queue.qsize() > self._MAX_QUEUE_SIZE:
                         notification = self.notification_queue.get()
                         LOG.warn(
-                            "Queue is full: ignoring notification '%s'",
+                            "Notification queue is full: "
+                            "ignoring notification '%s'",
                             notification["data"])
                     self.notification_queue.put(change)
 
-        @staticmethod
-        def _main_thread_alive():
-            """Returns whether the main thread is still running or not."""
-            for thread_i in threading.enumerate():
-                if thread_i.name == "MainThread":
-                    return thread_i.is_alive()
-            return False
-
         def _notification_loop(self):
             """Loops calling WaitForNotification on this session."""
-            while self._main_thread_alive() and \
-                    self.listen_notifications.is_set():
+            while self.listen_notifications.is_set():
                 try:
                     changes = self.flow.wait_for_notification(self.sid)
+                except Flow.FlowError as flow_err:
+                    self._queue_error(str(flow_err))
+                else:
                     self.callback_lock.acquire()
                     self._queue_changes(changes)
                     self.callback_lock.release()
-                except Flow.FlowError:
-                    pass
 
         def consume_notification(self, timeout_secs):
             """Consumes the notification queue for this session
@@ -177,7 +186,8 @@ class Flow(object):
                  db_dir="",
                  schema_dir="",
                  attachment_dir="",
-                 use_tls=""):
+                 use_tls="",
+                 flowappglue_output_filename=""):
         """Initializes the Flow object. It starts and configures
         flowappglue local server as a subprocess.
         It also starts a new session so that you can start using
@@ -187,7 +197,6 @@ class Flow(object):
         Arguments:
         flowappglue : string, path to the flowappglue binary,
         if empty, then it tries to determine the location.
-        debug : boolean.
         """
         if not flowappglue:
             flowappglue = definitions.get_default_flowappglue_path()
@@ -195,10 +204,12 @@ class Flow(object):
         if not db_dir:
             db_dir = definitions.get_default_db_path()
         self._check_file_exists(db_dir, True)
-        flowappglue_output_file_name = os.path.join(
-            db_dir,
-            time.strftime("semaphor_backend_%Y%m%d%H%M%S.log"))
-        with open(flowappglue_output_file_name, "w") as log_file:
+        if not flowappglue_output_filename:
+            flowappglue_output_filename = os.path.join(
+                db_dir,
+                time.strftime("semaphor_backend_%Y%m%d%H%M%S.log")
+            )
+        with open(flowappglue_output_filename, "w") as log_file:
             self._flowappglue = subprocess.Popen(
                 [flowappglue, "0"],
                 stdout=subprocess.PIPE,
@@ -365,6 +376,23 @@ class Flow(object):
         """
         sid = self._get_session_id(sid)
         return self.sessions[sid].consume_notification(timeout_secs)
+
+    def get_notification_error(self, timeout_secs=0.05, sid=0):
+        """Returns a notification error from the error queue.
+        Returns 'None' if there's no error on the queue.
+        Arguments:
+        timeout_secs : float, seconds to block on the notification queue.
+        sid : int, SessionI.
+        """
+        sid = self._get_session_id(sid)
+        try:
+            error = self.sessions[sid].error_queue.get(
+                block=True,
+                timeout=timeout_secs,
+            )
+        except Queue.Empty:
+            error = None
+        return error
 
     def set_processing_notifications(self, value=True):
         """Sets whether to continue processing the notifications.
