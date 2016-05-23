@@ -97,12 +97,12 @@ class Flow(object):
             # This check should leave the queue with
             # an approximate size of _MAX_QUEUE_SIZE
             if self.error_queue.qsize() > self._MAX_QUEUE_SIZE:
-                notification = self.error_queue.get()
+                ignored_error = self.error_queue.get()
                 LOG.warn(
-                    "Error queue is full: ignoring notification '%s'",
-                    notification["data"],
+                    "Error queue is full: ignoring error '%s'",
+                    ignored_error,
                 )
-                self.error_queue.put(error)
+            self.error_queue.put(error)
 
         def _queue_changes(self, changes):
             """Queues the changes of registered change types.
