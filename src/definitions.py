@@ -7,7 +7,7 @@ import sys
 
 
 # Sane default definitions
-DEFAULT_SERVER = "159.203.235.96"
+DEFAULT_SERVER = "flow.spideroak.com"
 DEFAULT_PORT = "443"
 DEFAULT_USE_TLS = "true"
 DEFAULT_URI = "flow.spideroak.com"
