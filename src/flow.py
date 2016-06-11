@@ -3,18 +3,20 @@ Flow Synchronous API Python Module.
 All Flow API responses are represented with Python dicts.
 """
 
+import sys
 import subprocess
+import platform as platform_module
 import json
-import requests
 import threading
 import Queue
-import definitions
 import os
 import string
 import random
 import logging
-import time
 
+import requests
+
+from . import definitions
 
 LOG = logging.getLogger("flow")
 
@@ -42,6 +44,60 @@ class Flow(object):
     DOWNLOAD_PROGRESS_NOTIFICATION = "download-progress-event"
     DOWNLOAD_COMPLETE_NOTIFICATION = "download-complete-event"
     DOWNLOAD_ERROR_NOTIFICATION = "download-error-event"
+    CHANNEL_SESSION_KEY_NOTIFICATION = "channel-session-key"
+    CHANNEL_SESSION_KEY_SHARE_NOTIFICATION = "channel-session-key-share"
+
+    def _make_notification_decorator(name):
+        """Generates decorator functions for all notifications.
+        E.g. the 'message' notification decorator usage:
+        @flow.message
+        def my_message_callback(notif_type, data):
+            # do something...
+        """
+
+        def notification_decorator(self, func):
+            """Decorator to register the event callback."""
+            self.register_callback(name, func)
+            return func
+        notification_decorator.__doc__ = "Decorator to register a '%s' " \
+            "notification callback." % name
+        notification_decorator.__name__ = name
+        return notification_decorator
+
+    # Generate decorators for the notification callbacks
+    message = _make_notification_decorator(MESSAGE_NOTIFICATION)
+    org = _make_notification_decorator(ORG_NOTIFICATION)
+    channel = _make_notification_decorator(CHANNEL_NOTIFICATION)
+    message = _make_notification_decorator(MESSAGE_NOTIFICATION)
+    hwm = _make_notification_decorator(HWM_NOTIFICATION)
+    channel_member_event = _make_notification_decorator(
+        CHANNEL_MEMBER_NOTIFICATION)
+    org_member_event = _make_notification_decorator(ORG_MEMBER_NOTIFICATION)
+    org_join_request = _make_notification_decorator(
+        ORG_JOIN_REQUEST_NOTIFICATION)
+    peer_verification = _make_notification_decorator(
+        PEER_VERIFICATION_NOTIFICATION)
+    profile = _make_notification_decorator(PROFILE_NOTIFICATION)
+    upload_start_event = _make_notification_decorator(
+        UPLOAD_START_NOTIFICATION)
+    upload_progress_event = _make_notification_decorator(
+        UPLOAD_PROGRESS_NOTIFICATION)
+    upload_compete_event = _make_notification_decorator(
+        UPLOAD_COMPLETE_NOTIFICATION)
+    upload_error_event = _make_notification_decorator(
+        UPLOAD_ERROR_NOTIFICATION)
+    download_start_event = _make_notification_decorator(
+        DOWNLOAD_START_NOTIFICATION)
+    download_progress_event = _make_notification_decorator(
+        DOWNLOAD_PROGRESS_NOTIFICATION)
+    download_complete_event = _make_notification_decorator(
+        DOWNLOAD_COMPLETE_NOTIFICATION)
+    download_error_event = _make_notification_decorator(
+        DOWNLOAD_ERROR_NOTIFICATION)
+    channel_session_key = _make_notification_decorator(
+        CHANNEL_SESSION_KEY_NOTIFICATION)
+    channel_session_key_share = _make_notification_decorator(
+        CHANNEL_SESSION_KEY_SHARE_NOTIFICATION)
 
     class _Session(object):
         """Internal class to hold session data."""
@@ -129,7 +185,7 @@ class Flow(object):
             """Loops calling WaitForNotification on this session."""
             while self.listen_notifications.is_set():
                 try:
-                    changes = self.flow.wait_for_notification(self.sid)
+                    changes = self.flow.wait_for_notification(sid=self.sid)
                 except Flow.FlowError as flow_err:
                     self._queue_error(str(flow_err))
                 else:
@@ -174,20 +230,29 @@ class Flow(object):
                 self.notification_thread.join()
 
     class FlowError(Exception):
-        """Exception class for Flow related errors"""
+        """Exception class for Flow service related errors."""
         pass
 
-    def __init__(self,
-                 username="",
-                 server_uri="",
-                 flowappglue="",
-                 host="",
-                 port="",
-                 db_dir="",
-                 schema_dir="",
-                 attachment_dir="",
-                 use_tls="",
-                 flowappglue_output_filename=""):
+    class FlowConnectionError(Exception):
+        """Exception class for Flow connection related errors."""
+        pass
+
+    class FlowTimeoutError(Exception):
+        """Exception class for Flow connection timeout related errors."""
+        pass
+
+    def __init__(
+            self,
+            username="",
+            server_uri=definitions.DEFAULT_URI,
+            flowappglue=definitions.get_default_flowappglue_path(),
+            host=definitions.DEFAULT_SERVER,
+            port=definitions.DEFAULT_PORT,
+            db_dir=definitions.get_default_db_path(),
+            schema_dir=definitions.get_default_schema_path(),
+            attachment_dir=definitions.get_default_attachment_path(),
+            use_tls=definitions.DEFAULT_USE_TLS,
+            glue_out_filename=definitions.get_default_glue_out_filename()):
         """Initializes the Flow object. It starts and configures
         flowappglue local server as a subprocess.
         It also starts a new session so that you can start using
@@ -198,18 +263,10 @@ class Flow(object):
         flowappglue : string, path to the flowappglue binary,
         if empty, then it tries to determine the location.
         """
-        if not flowappglue:
-            flowappglue = definitions.get_default_flowappglue_path()
+        self.server_uri = server_uri
         self._check_file_exists(flowappglue)
-        if not db_dir:
-            db_dir = definitions.get_default_db_path()
         self._check_file_exists(db_dir, True)
-        if not flowappglue_output_filename:
-            flowappglue_output_filename = os.path.join(
-                db_dir,
-                time.strftime("semaphor_backend_%Y%m%d%H%M%S.log")
-            )
-        with open(flowappglue_output_filename, "w") as log_file:
+        with open(glue_out_filename, "w") as log_file:
             self._flowappglue = subprocess.Popen(
                 [flowappglue, "0"],
                 stdout=subprocess.PIPE,
@@ -224,7 +281,7 @@ class Flow(object):
         self._loop_process_notifications = False
         # If username available then start the session
         if username:
-            self.start_up(username, server_uri)
+            self.start_up(username)
 
     def terminate(self):
         """Shuts down the flowappglue local server.
@@ -251,7 +308,7 @@ class Flow(object):
         """
         return sid if sid else self._current_session
 
-    def _run(self, method, **params):
+    def _run(self, method, timeout=None, **params):
         """Performs the HTTP JSON POST against
         the flowappglue server on localhost.
         Arguments:
@@ -275,10 +332,12 @@ class Flow(object):
                 "http://localhost:%s/rpc" %
                 self._port,
                 headers={'Content-type': 'application/json'},
+                timeout=timeout,
                 data=request_str)
-        except (requests.exceptions.ConnectionError,
-                requests.exceptions.Timeout) as flow_err:
-            raise Flow.FlowError(str(flow_err))
+        except requests.exceptions.ConnectionError as connection_err:
+            raise Flow.FlowConnectionError(connection_err)
+        except requests.exceptions.Timeout as timeout_err:
+            raise Flow.FlowTimeoutError(timeout_err)
         response_data = json.loads(response.text, encoding='utf-8')
         LOG.debug(
             "response method=%s id=%s: HTTP %s, lat=%.2fs: %s",
@@ -306,43 +365,34 @@ class Flow(object):
 
     def _config(
             self,
-            host="",
-            port="",
-            db_dir="",
-            schema_dir="",
-            attachment_dir="",
-            use_tls=""):
+            host,
+            port,
+            db_dir,
+            schema_dir,
+            attachment_dir,
+            use_tls,
+            timeout=None):
         """Sets up the basic configuration parameters for FlowApp
         to talk FlowServ and create local accounts.
         If arguments are empty, then it will try to determine the
         configuration.
         """
-        # try to determine defaults if not specified
-        if not host:
-            host = definitions.DEFAULT_SERVER
-        if not port:
-            port = definitions.DEFAULT_PORT
-        if not db_dir:
-            db_dir = definitions.get_default_db_path()
-        if not schema_dir:
-            schema_dir = definitions.get_default_schema_path()
-        if not attachment_dir:
-            attachment_dir = definitions.get_default_attachment_path()
-        if not use_tls:
-            use_tls = definitions.DEFAULT_USE_TLS
         self._check_file_exists(schema_dir)
         self._check_file_exists(db_dir, True)
         self._check_file_exists(attachment_dir, True)
-        self._run(method="Config",
-                  FlowServHost=host,
-                  FlowServPort=port,
-                  FlowLocalDatabaseDir=db_dir,
-                  FlowLocalSchemaDir=schema_dir,
-                  FlowLocalAttachmentDir=attachment_dir,
-                  FlowUseTLS=use_tls,
-                  )
+        self._run(
+            method="Config",
+            FlowServHost=host,
+            FlowServPort=port,
+            FlowLocalDatabaseDir=db_dir,
+            FlowLocalSchemaDir=schema_dir,
+            FlowLocalAttachmentDir=attachment_dir,
+            FlowUseTLS=use_tls,
+            timeout=timeout,
+        )
 
-    def register_callback(self, notification_name, callback, sid=0):
+    def register_callback(self, notification_name,
+                          callback, sid=0):
         """Registers a callback to be executed for
         a specific notification type.
         Arguments:
@@ -414,11 +464,14 @@ class Flow(object):
         while self._loop_process_notifications:
             self.sessions[sid].consume_notification(timeout_secs)
 
-    def new_session(self):
+    def new_session(self, timeout=None):
         """Creates a new session.
         Returns an integer representing a SessionID.
         """
-        response = self._run(method="NewSession")
+        response = self._run(
+            method="NewSession",
+            timeout=timeout,
+        )
         sid = response["SessionID"]
         self.sessions[sid] = self._Session(self, sid)
         return sid
@@ -436,66 +489,72 @@ class Flow(object):
         used by API calls."""
         return self._current_session
 
-    def start_up(self, username, server_uri="", sid=0):
+    def start_up(self, username="", timeout=None, sid=0):
         """Starts the flowapp instance (notification internal loop, etc)
         for an account that is already created and has a device already
-        configured in the current device. Returns 'null'.
+        configured in the current device.
         Internally, it starts a thread that calls WaitForNotifications
         and stores the notifications on a event queue.
+        If 'username' is empty, then it will start up the
+        first local account on the current device.
         """
-        if not server_uri:
-            server_uri = definitions.DEFAULT_URI
+        if not username:
+            local_accounts = self.enumerate_local_accounts()
+            if local_accounts:
+                username = local_accounts[0]["username"]
         sid = self._get_session_id(sid)
-        self._run(method="StartUp",
-                  SessionID=sid,
-                  Username=username,
-                  ServerURI=server_uri,
-                  )
+        self._run(
+            method="StartUp",
+            SessionID=sid,
+            Username=username,
+            ServerURI=self.server_uri,
+            timeout=timeout,
+        )
         self.sessions[sid].start_notification_loop()
 
     def create_account(
             self,
             username,
-            server_uri,
             password,
             device_name,
-            platform,
-            os_release,
             phone_number,
+            platform=sys.platform,
+            os_release=platform_module.release(),
             email_confirm_code="",
             totpverifier="",
+            timeout=None,
             sid=0):
         """Creates an account with the specified data.
         'phone_number', along with 'username' and 'server_uri'
         (these last two provided at 'start_up') must be unique.
         This call also starts the notification
         loop for this session.
-        Returns 'null'.
         """
         sid = self._get_session_id(sid)
-        response = self._run(method="CreateAccount",
-                             SessionID=sid,
-                             PhoneNumber=phone_number,
-                             DeviceName=device_name,
-                             Username=username,
-                             ServerURI=server_uri,
-                             Platform=platform,
-                             OSRelease=os_release,
-                             Password=password,
-                             TotpVerifier=totpverifier,
-                             EmailConfirmCode=email_confirm_code,
-                             NotifyToken="",
-                             )
+        self._run(
+            method="CreateAccount",
+            SessionID=sid,
+            PhoneNumber=phone_number,
+            DeviceName=device_name,
+            Username=username,
+            ServerURI=self.server_uri,
+            Platform=platform,
+            OSRelease=os_release,
+            Password=password,
+            TotpVerifier=totpverifier,
+            EmailConfirmCode=email_confirm_code,
+            NotifyToken="",
+            timeout=timeout,
+        )
         self.sessions[sid].start_notification_loop()
-        return response
 
     def create_device(self,
                       username,
-                      server_uri,
                       device_name,
                       password,
-                      platform,
-                      os_release,
+                      platform=sys.platform,
+                      os_release=platform_module.release(),
+                      timeout=None,
                       sid=0):
         """CreateDevice creates a new device for an existing account,
         similar to CreateAccount in terms of parameters.
@@ -503,125 +562,174 @@ class Flow(object):
         Returns a 'Device' dict.
         """
         sid = self._get_session_id(sid)
-        response = self._run(method="CreateDevice",
-                             SessionID=sid,
-                             Username=username,
-                             ServerURI=server_uri,
-                             DeviceName=device_name,
-                             Password=password,
-                             Platform=platform,
-                             OSRelease=os_release,
-                             )
+        response = self._run(
+            method="CreateDevice",
+            SessionID=sid,
+            Username=username,
+            ServerURI=self.server_uri,
+            DeviceName=device_name,
+            Password=password,
+            Platform=platform,
+            OSRelease=os_release,
+            timeout=timeout,
+        )
         self.sessions[sid].start_notification_loop()
         return response
 
-    def account_id(self, sid=0):
+    def account_id(self, timeout=None, sid=0):
         """Returns the accountId for this account."""
         sid = self._get_session_id(sid)
-        return self._run(method="AccountId",
-                         SessionID=sid,
-                         )
+        return self._run(
+            method="AccountId",
+            SessionID=sid,
+            timeout=timeout,
+        )
 
-    def new_org(self, name, discoverable=True, sid=0):
+    def new_org(self, name, discoverable=True, timeout=None, sid=0):
         """Creates a new organization. Returns an 'Org' dict."""
         sid = self._get_session_id(sid)
-        return self._run(method="NewOrg",
-                         SessionID=sid,
-                         Name=name,
-                         Discoverable=discoverable,
-                         )
+        return self._run(
+            method="NewOrg",
+            SessionID=sid,
+            Name=name,
+            Discoverable=discoverable,
+            timeout=timeout,
+        )
 
-    def new_channel(self, oid, name, sid=0):
+    def new_channel(self, oid, name, timeout=None, sid=0):
         """Creates a new channel in a specific 'OrgID'.
         Returns a string that represents the `ChannelID` created.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="NewChannel",
-                         SessionID=sid,
-                         OrgID=oid,
-                         Name=name,
-                         )
+        return self._run(
+            method="NewChannel",
+            SessionID=sid,
+            OrgID=oid,
+            Name=name,
+            timeout=timeout,
+        )
 
-    def enumerate_orgs(self, sid=0):
+    def enumerate_orgs(self, timeout=None, sid=0):
         """Lists all the orgs the caller is a member of.
         Returns array of 'Org' dicts.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="EnumerateOrgs",
-                         SessionID=sid,
-                         )
+        return self._run(
+            method="EnumerateOrgs",
+            SessionID=sid,
+            timeout=timeout,
+        )
 
-    def enumerate_org_members(self, oid, sid=0):
+    def enumerate_org_members(self, oid, timeout=None, sid=0):
         """Lists all members for an org and their state."""
         sid = self._get_session_id(sid)
-        return self._run(method="EnumerateOrgMembers",
-                         SessionID=sid,
-                         OrgID=oid,
-                         )
+        return self._run(
+            method="EnumerateOrgMembers",
+            SessionID=sid,
+            OrgID=oid,
+            timeout=timeout,
+        )
 
-    def enumerate_channels(self, oid, sid=0):
+    def enumerate_channels(self, oid, timeout=None, sid=0):
         """Lists the channels available for an 'OrgID'.
         Returns an array of 'Channel' dicts.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="EnumerateChannels",
-                         SessionID=sid,
-                         OrgID=oid,
-                         )
+        return self._run(
+            method="EnumerateChannels",
+            SessionID=sid,
+            OrgID=oid,
+            timeout=timeout,
+        )
 
-    def enumerate_channel_members(self, cid, sid=0):
+    def enumerate_channel_members(self, cid, timeout=None, sid=0):
         """Lists the channel members for a given 'ChannelID'.
         Returns an array of 'ChannelMember' dicts.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="EnumerateChannelMembers",
-                         SessionID=sid,
-                         ChannelID=cid,
-                         )
+        return self._run(
+            method="EnumerateChannelMembers",
+            SessionID=sid,
+            ChannelID=cid,
+            timeout=timeout,
+        )
 
-    def new_attachment(self, oid, file_path, sid=0):
+    def new_attachment(self, oid, file_path, timeout=None, sid=0):
         """Returns an 'Attachment' dict ready to be used on send_message().
         file_path must be the absolute path.
         """
         sid = self._get_session_id(sid)
-        aid = self._run(method="NewAttachment",
-                        SessionID=sid,
-                        OrgID=oid,
-                        FilePath=file_path,
-                        )
+        aid = self._run(
+            method="NewAttachment",
+            SessionID=sid,
+            OrgID=oid,
+            FilePath=file_path,
+            timeout=timeout,
+        )
         file_basename = os.path.basename(file_path)
         return {"id": aid, "filename": file_basename}
 
-    def start_attachment_download(self, aid, oid, cid, mid, sid=0):
+    def start_attachment_download(
+            self, aid, oid, cid, mid, timeout=None, sid=0):
         """Requests download of an attachment.
         Status will be reported on the notification channel.
         """
         sid = self._get_session_id(sid)
-        self._run(method="StartAttachmentDownload",
-                  SessionID=sid,
-                  AttachmentID=aid,
-                  OrgID=oid,
-                  ChannelID=cid,
-                  MessageID=mid,
-                  )
+        self._run(
+            method="StartAttachmentDownload",
+            SessionID=sid,
+            AttachmentID=aid,
+            OrgID=oid,
+            ChannelID=cid,
+            MessageID=mid,
+            timeout=timeout,
+        )
+
+    def update_attachment_path(self, aid, new_path, timeout=None, sid=0):
+        """Moves the attachment represented by the id
+        specified to 'new_path', if it has completed
+        uploading or downloading.
+        """
+        sid = self._get_session_id(sid)
+        self._run(
+            method="UpdateAttachmentPath",
+            SessionID=sid,
+            AttachmentID=aid,
+            NewPath=new_path,
+            timeout=timeout,
+        )
+
+    def stored_attachment_path(self, oid, aid, timeout=None, sid=0):
+        """Returns the path where the attachment has been
+        stored when the download is complete."""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="StoredAttachmentPath",
+            SessionID=sid,
+            OrgID=oid,
+            AttachmentID=aid,
+            timeout=timeout,
+        )
 
     def send_message(self, oid, cid, msg, attachments=None,
-                     other_data=None, sid=0):
+                     other_data=None, timeout=None, sid=0):
         """Sends a message to a channel this user is a member of.
         Returns a string that represents the 'MessageID'
         that has just been sent.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="SendMessage",
-                         SessionID=sid,
-                         OrgID=oid,
-                         ChannelID=cid,
-                         Text=msg,
-                         OtherData=other_data,
-                         Attachments=attachments,
-                         )
+        return self._run(
+            method="SendMessage",
+            SessionID=sid,
+            OrgID=oid,
+            ChannelID=cid,
+            Text=msg,
+            OtherData=other_data,
+            Attachments=attachments,
+            timeout=timeout,
+        )
 
-    def wait_for_notification(self, sid=0):
+    def wait_for_notification(self, timeout=None, sid=0):
         """Returns the oldest unseen notification
         in the queue for this device.
         WARNING: it will block until there's a new notification
@@ -630,173 +738,234 @@ class Flow(object):
         the main one. Returns a 'Change' dict.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="WaitForNotification",
-                         SessionID=sid,
-                         )
+        return self._run(
+            method="WaitForNotification",
+            SessionID=sid,
+            timeout=timeout,
+        )
 
-    def enumerate_messages(self, oid, cid, filters=None, sid=0):
+    def enumerate_messages(self, oid, cid, filters=None, timeout=None, sid=0):
         """Lists all the messages for a channel.
         Returns an array of 'Message' dicts.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="EnumerateMessages",
-                         SessionID=sid,
-                         OrgID=oid,
-                         ChannelID=cid,
-                         Filters=filters,
-                         )
+        return self._run(
+            method="EnumerateMessages",
+            SessionID=sid,
+            OrgID=oid,
+            ChannelID=cid,
+            Filters=filters,
+            timeout=timeout,
+        )
 
-    def get_channel(self, cid, sid=0):
+    def get_unread_count(self, oid, cid, timeout=None, sid=0):
+        """Returns the amount of unread
+        messages for a channel based on the known HWM.
+        It will report up to 101 unread messages since
+        the goal is to just show '100+'
+        in that case and over.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="GetUnreadCount",
+            SessionID=sid,
+            OrgID=oid,
+            ChannelID=cid,
+            timeout=timeout,
+        )
+
+    def search(self, oid, cid, search, timeout=None, sid=0):
+        """Returns a list of 'message' notification dicts for
+        all messages matching a search string."""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="Search",
+            SessionID=sid,
+            OrgID=oid,
+            ChannelID=cid,
+            Search=search,
+            timeout=timeout,
+        )
+
+    def get_channel(self, cid, timeout=None, sid=0):
         """Returns all the metadata for a channel the user is a member of.
         Returns a 'Channel' dict.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="GetChannel",
-                         SessionID=sid,
-                         ChannelID=cid,
-                         )
+        return self._run(
+            method="GetChannel",
+            SessionID=sid,
+            ChannelID=cid,
+            timeout=timeout,
+        )
 
-    def new_org_join_request(self, oid, sid=0):
-        """Creates a new request to join an existing organization.
-        Returns 'null'.
-        """
+    def new_org_join_request(self, oid, timeout=None, sid=0):
+        """Creates a new request to join an existing organization."""
         sid = self._get_session_id(sid)
-        return self._run(method="NewOrgJoinRequest",
-                         SessionID=sid,
-                         OrgID=oid,
-                         )
+        self._run(
+            method="NewOrgJoinRequest",
+            SessionID=sid,
+            OrgID=oid,
+            timeout=timeout,
+        )
 
-    def enumerate_org_join_requests(self, oid, sid=0):
+    def enumerate_org_join_requests(self, oid, timeout=None, sid=0):
         """Lists all the join requests for an 'OrgID'.
         Returns an array of 'OrgJoinRequest' dicts.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="EnumerateOrgJoinRequests",
-                         SessionID=sid,
-                         OrgID=oid,
-                         )
+        return self._run(
+            method="EnumerateOrgJoinRequests",
+            SessionID=sid,
+            OrgID=oid,
+            timeout=timeout,
+        )
 
-    def org_add_member(self, oid, account_id, member_state, sid=0):
+    def org_add_member(self, oid, account_id,
+                       member_state, timeout=None, sid=0):
         """Adds a member to an organization, assuming the user has
-        the proper permissions. Returns 'null'.
+        the proper permissions.
         'member_state' argument valid values are
         'm' (member), 'a' (admin), 'o' (owner), 'b' blocked.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="OrgAddMember",
-                         SessionID=sid,
-                         OrgID=oid,
-                         MemberAccountID=account_id,
-                         MemberState=member_state,
-                         )
+        self._run(
+            method="OrgAddMember",
+            SessionID=sid,
+            OrgID=oid,
+            MemberAccountID=account_id,
+            MemberState=member_state,
+            timeout=timeout,
+        )
 
-    def channel_add_member(self, oid, cid, account_id, member_state, sid=0):
+    def channel_add_member(self, oid, cid, account_id,
+                           member_state, timeout=None, sid=0):
         """Adds the specified member to the channel as long as
-        the requestor has the right permissions. Returns 'null'.
+        the requestor has the right permissions.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="ChannelAddMember",
-                         SessionID=sid,
-                         OrgID=oid,
-                         ChannelID=cid,
-                         MemberAccountID=account_id,
-                         MemberState=member_state,
-                         )
+        self._run(
+            method="ChannelAddMember",
+            SessionID=sid,
+            OrgID=oid,
+            ChannelID=cid,
+            MemberAccountID=account_id,
+            MemberState=member_state,
+            timeout=timeout,
+        )
 
-    def new_direct_conversation(self, oid, account_id, sid=0):
+    def new_direct_conversation(self, oid, account_id, timeout=None, sid=0):
         """Creates a new channel to initiate a
         direct conversation with another user.
         Returns a 'ChannelID'.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="NewDirectConversation",
-                         SessionID=sid,
-                         OrgID=oid,
-                         MemberID=account_id,
-                         )
+        return self._run(
+            method="NewDirectConversation",
+            SessionID=sid,
+            OrgID=oid,
+            MemberID=account_id,
+            timeout=timeout,
+        )
 
-    def get_peer(self, username, sid=0):
+    def get_peer(self, username, timeout=None, sid=0):
         """Returns all the metadata of a peer from username.
         Returns a 'Peer' dict.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="GetPeer",
-                         SessionID=sid,
-                         PeerUsername=username,
-                         )
+        return self._run(
+            method="GetPeer",
+            SessionID=sid,
+            PeerUsername=username,
+            timeout=timeout,
+        )
 
-    def get_peer_from_id(self, account_id, sid=0):
+    def get_peer_from_id(self, account_id, timeout=None, sid=0):
         """Returns all the metadata of a peer from account id.
         Returns a 'Peer' dict.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="GetPeerFromID",
-                         SessionID=sid,
-                         PeerID=account_id,
-                         )
+        return self._run(
+            method="GetPeerFromID",
+            SessionID=sid,
+            PeerID=account_id,
+            timeout=timeout,
+        )
 
-    def enumerate_local_accounts(self):
+    def enumerate_local_accounts(self, timeout=None):
         """Lists all the accounts configured locally (not the peers).
         Returns an array of 'AccountIdentifier' dicts.
         """
-        return self._run(method="EnumerateLocalAccounts",
-                         )
+        return self._run(
+            method="EnumerateLocalAccounts",
+            timeout=timeout,
+        )
 
-    def enumerate_peer_accounts(self, sid=0):
+    def enumerate_peer_accounts(self, timeout=None, sid=0):
         """Lists all the peer accounts.
         Returns an array of 'Peer' dicts.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="EnumeratePeerAccounts",
-                         SessionID=sid,
-                         )
+        return self._run(
+            method="EnumeratePeerAccounts",
+            SessionID=sid,
+            timeout=timeout,
+        )
 
     def new_org_member_state(self,
                              oid,
                              member_account_id,
                              member_state,
+                             timeout=None,
                              sid=0):
         """Sets the Org member state for a given account.
         'member_state' can be one of the following:
         'a' (admin), 'm' (member), 'o' (owner), 'b' (blocked).
         """
         sid = self._get_session_id(sid)
-        return self._run(method="NewOrgMemberState",
-                         SessionID=sid,
-                         OrgID=oid,
-                         MemberAccountID=member_account_id,
-                         MemberState=member_state,
-                         )
+        return self._run(
+            method="NewOrgMemberState",
+            SessionID=sid,
+            OrgID=oid,
+            MemberAccountID=member_account_id,
+            MemberState=member_state,
+            timeout=timeout,
+        )
 
     def new_channel_member_state(self,
                                  oid,
                                  cid,
                                  member_account_id,
                                  member_state,
+                                 timeout=None,
                                  sid=0):
         """Sets the Channel member state for a given account.
         'member_state' can be one of the following:
         'a' (admin), 'm' (member), 'o' (owner), 'b' (blocked).
         """
         sid = self._get_session_id(sid)
-        return self._run(method="NewChannelMemberState",
-                         SessionID=sid,
-                         OrgID=oid,
-                         ChannelID=cid,
-                         MemberAccountID=member_account_id,
-                         MemberState=member_state,
-                         )
+        return self._run(
+            method="NewChannelMemberState",
+            SessionID=sid,
+            OrgID=oid,
+            ChannelID=cid,
+            MemberAccountID=member_account_id,
+            MemberState=member_state,
+            timeout=timeout,
+        )
 
-    def get_devices(self, sid=0):
+    def get_devices(self, timeout=None, sid=0):
         """Returns all devices associated to the current account.
         Returns a list of 'Device' dicts.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="GetDevices",
-                         SessionID=sid,
-                         )
+        return self._run(
+            method="GetDevices",
+            SessionID=sid,
+            timeout=timeout,
+        )
 
-    def start_d2d_rendezvous(self, sid=0):
+    def start_d2d_rendezvous(self, timeout=None, sid=0):
         """StartD2DRendezvous generates a 32 random bytes for usage as a
         rendezvous ID in device to device provsioning and a key pair for DH.
         It returns the 32 random bytes for them to be shared in some way
@@ -804,54 +973,60 @@ class Flow(object):
         Returns string with the rendezvous ID.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="StartD2DRendezvous",
-                         SessionID=sid,
-                         )
+        return self._run(
+            method="StartD2DRendezvous",
+            SessionID=sid,
+            timeout=timeout,
+        )
 
-    def provision_new_device(self, sid=0):
+    def provision_new_device(self, timeout=None, sid=0):
         """ProvisionNewDevice pushes the provisioning payload for
         a new device to be created from it.
         Only the established device uses this after
         calling StartD2DRendezvous.
         This call blocks the caller until the new
         device creates the device.
-        Returns 'null'.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="ProvisionNewDevice",
-                         SessionID=sid,
-                         )
+        self._run(
+            method="ProvisionNewDevice",
+            SessionID=sid,
+            timeout=timeout,
+        )
 
     def create_device_from_rendezvous(self,
                                       rendezvous_id,
                                       device_name,
-                                      platform,
-                                      os_release,
+                                      platform=sys.platform,
+                                      os_release=platform_module.release(),
+                                      timeout=None,
                                       sid=0):
         """CreateDeviceFromRendezvous creates a new device by downloading a
         provisioning payload using the rendezvousID.
         Only the new device uses this method.
         This call also starts the notification
         loop for this session.
-        Returns 'null'.
         """
         sid = self._get_session_id(sid)
-        response = self._run(method="CreateDeviceFromD2D",
-                             SessionID=sid,
-                             RendezvousID=rendezvous_id,
-                             DeviceName=device_name,
-                             Platform=platform,
-                             OSRelease=os_release,
-                             )
+        self._run(
+            method="CreateDeviceFromD2D",
+            SessionID=sid,
+            RendezvousID=rendezvous_id,
+            DeviceName=device_name,
+            Platform=platform,
+            OSRelease=os_release,
+            timeout=timeout,
+        )
         self.sessions[sid].start_notification_loop()
-        return response
 
-    def cancel_rendezvous(self, sid=0):
+    def cancel_rendezvous(self, timeout=None, sid=0):
         """CancelRendezvous tries cancelling an ongoing rendezvous, if any."""
         sid = self._get_session_id(sid)
-        self._run(method="CancelRendezvous",
-                  SessionID=sid,
-                  )
+        self._run(
+            method="CancelRendezvous",
+            SessionID=sid,
+            timeout=timeout,
+        )
 
     @staticmethod
     def get_profile_item_json(display_name, biography, photo):
@@ -863,68 +1038,84 @@ class Flow(object):
         ))
         return content
 
-    def set_profile(self, item, content, sid=0):
+    def set_profile(self, item, content, timeout=None, sid=0):
         """CancelRendezvous tries cancelling an ongoing rendezvous, if any."""
         sid = self._get_session_id(sid)
-        self._run(method="SetProfile",
-                  SessionID=sid,
-                  Content=content,
-                  Item=item,
-                  )
+        self._run(
+            method="SetProfile",
+            SessionID=sid,
+            Content=content,
+            Item=item,
+            timeout=timeout,
+        )
 
-    def identifier(self, sid=0):
+    def identifier(self, timeout=None, sid=0):
         """Identifier returns the Username and ServerURI for this account.
         Returns an 'AccountIdentifier' dict.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="Identifier",
-                         SessionID=sid,
-                         )
+        return self._run(
+            method="Identifier",
+            SessionID=sid,
+            timeout=timeout,
+        )
 
-    def peer_data(self, sid=0):
+    def peer_data(self, timeout=None, sid=0):
         """Returns 'Peer' dict for this account."""
         sid = self._get_session_id(sid)
-        return self._run(method="PeerData",
-                         )
+        return self._run(
+            method="PeerData",
+            SessionID=sid,
+            timeout=timeout,
+        )
 
     def verify_peer_keyring(self,
                             username,
                             account_id,
                             keyring_id,
                             verification_method,
+                            timeout=None,
                             sid=0):
         """Peer Key Verification for web of trust."""
         sid = self._get_session_id(sid)
-        return self._run(method="VerifyPeerKeyRing",
-                         SessionID=sid,
-                         PeerUsername=username,
-                         PeerAccountID=account_id,
-                         PeerKeyRingID=keyring_id,
-                         VerificationMethod=verification_method,
-                         )
+        return self._run(
+            method="VerifyPeerKeyRing",
+            SessionID=sid,
+            PeerUsername=username,
+            PeerAccountID=account_id,
+            PeerKeyRingID=keyring_id,
+            VerificationMethod=verification_method,
+            timeout=timeout,
+        )
 
-    def set_channel_read_hwm(self, oid, cid, mid, sid=0):
-        """Sets a new HWM for an account in a channel. Returns 'null'."""
+    def set_channel_read_hwm(self, oid, cid, mid, timeout=None, sid=0):
+        """Sets a new HWM for an account in a channel."""
         sid = self._get_session_id(sid)
-        return self._run(method="SetChannelReadHWM",
-                         SessionID=sid,
-                         OrgID=oid,
-                         ChannelID=cid,
-                         MessageID=mid,
-                         )
+        self._run(
+            method="SetChannelReadHWM",
+            SessionID=sid,
+            OrgID=oid,
+            ChannelID=cid,
+            MessageID=mid,
+            timeout=timeout,
+        )
 
     def verification_hash(self,
+                          timeout=None,
                           sid=0):
         """Returns the verification hash for this account."""
         sid = self._get_session_id(sid)
-        return self._run(method="VerificationHash",
-                         SessionID=sid,
-                         )
+        return self._run(
+            method="VerificationHash",
+            SessionID=sid,
+            timeout=timeout,
+        )
 
     def peer_verification_hash(self,
                                username,
                                fingerprint,
                                provided_hash,
+                               timeout=None,
                                sid=0):
         """Computes:
         hash(username + separator + serverURI + separator + fingerprint)
@@ -933,33 +1124,89 @@ class Flow(object):
         Returns bool whether the hash is valid or not.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="PeerVerificationHash",
-                         SessionID=sid,
-                         PeerUsername=username,
-                         Fingerprint=fingerprint,
-                         ProvidedHash=provided_hash,
-                         )
+        return self._run(
+            method="PeerVerificationHash",
+            SessionID=sid,
+            PeerUsername=username,
+            Fingerprint=fingerprint,
+            ProvidedHash=provided_hash,
+            timeout=timeout,
+        )
 
     def confirm_email(self,
                       username,
-                      server_uri,
+                      timeout=None,
                       sid=0):
         """Sends a confirmation request to the server
         The server will email a confirm code to the specified address
         The caller should use the code as the 'email_confirm_code' argument
         on 'create_account'.
-        Returns 'null'.
         """
         sid = self._get_session_id(sid)
-        return self._run(method="ConfirmEmail",
-                         SessionID=sid,
-                         Username=username,
-                         ServerURI=server_uri,
-                         )
+        self._run(
+            method="ConfirmEmail",
+            SessionID=sid,
+            Username=username,
+            ServerURI=self.server_uri,
+            timeout=timeout,
+        )
 
-    def close(self, sid=0):
+    def rotate_channel_session_key(self,
+                                   oid,
+                                   cid,
+                                   timeout=None,
+                                   sid=0):
+        """Declares a new channel session key
+        and notifies all channel members.
+        """
+        sid = self._get_session_id(sid)
+        self._run(
+            method="RotateChannelSessionKey",
+            SessionID=sid,
+            OrgID=oid,
+            ChannelID=cid,
+            timeout=timeout,
+        )
+
+    def delete_channel(self,
+                       oid,
+                       cid,
+                       timeout=None,
+                       sid=0):
+        """Removes a channel by banning all channel members."""
+        sid = self._get_session_id(sid)
+        self._run(
+            method="DeleteChannel",
+            SessionID=sid,
+            OrgID=oid,
+            ChannelID=cid,
+            timeout=timeout,
+        )
+
+    def pause(self, timeout=None, sid=0):
+        """Disconnect from the notification service.
+        Any existing already-in-progress
+        request to the server may continue.
+        """
+        sid = self._get_session_id(sid)
+        self._run(
+            method="Pause",
+            SessionID=sid,
+            timeout=timeout,
+        )
+
+    def resume(self, timeout=None, sid=0):
+        """Resume after a 'pause' operation."""
+        sid = self._get_session_id(sid)
+        self._run(
+            method="Resume",
+            SessionID=sid,
+            timeout=timeout,
+        )
+
+    def close(self, timeout=None, sid=0):
         """Closes a session and cleanly finishes any long running operations.
-        It could be seen as a logout. Returns 'null'.
+        It could be seen as a logout.
         """
         sid = self._get_session_id(sid)
         self.sessions[sid].close()
@@ -971,10 +1218,10 @@ class Flow(object):
         # loop thread is blocked in a wait_for_notification call
         # or flowappglue is not running anymore.
         try:
-            response = self._run(method="Close",
-                                 SessionID=sid,
-                                 )
+            self._run(
+                method="Close",
+                SessionID=sid,
+                timeout=timeout,
+            )
         except Exception as exception:
             LOG.debug("%s", str(exception))
-            response = "null"
-        return response

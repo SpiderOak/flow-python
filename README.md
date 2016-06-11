@@ -31,14 +31,13 @@ from flow import Flow
 
 flow = Flow('your-flow-username')
 
+# Here we register our callback to be executed when we receive a message
+@flow.message
 def print_message(notif_type, notif_data):
     regular_messages = notif_data["regularMessages"]
     for message in regular_messages:
         print("Got message '%s' from ChannelID='%s'" %
               (message["text"], message["channelId"]))
-
-# Here we register our callback to be executed when we receive a message
-flow.register_callback(Flow.MESSAGE_NOTIFICATION, print_message)
 
 # Once you registered all your callbacks, all you have to do is loop.
 flow.process_notifications()
@@ -46,7 +45,9 @@ flow.process_notifications()
 
 ## Comments
 
+- Tested support on Linux, Windows and MacOS.
 - If you intend to use one of the examples above, 'your-flow-username' should already be logged-in in your device.
+- See [samples](samples/) directory for examples on how to use the module.
 - An application should use a single instance of `flow.Flow`.
 - Use `logging.getLogger("flow")` to configure the log level for the module.
 - By default, local databases and `semaphor-backend` output are located under `~/.config/semaphor`, you can override this on `Flow` init (`db_dir`).
@@ -65,5 +66,5 @@ flow.process_notifications()
 - Unit Testing the flow module.
 - It has support for multiple sessions but this hasn't been tested yet.
 - Remove unnecessary args in Flow's `__init__()`.
+- Auto-generate API methods from the `flowapp` API.
 - See other TODOs in source code.
-
