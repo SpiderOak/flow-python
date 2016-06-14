@@ -334,10 +334,20 @@ class Flow(object):
                 headers={'Content-type': 'application/json'},
                 timeout=timeout,
                 data=request_str)
-        except requests.exceptions.ConnectionError as connection_err:
-            raise Flow.FlowConnectionError(connection_err)
-        except requests.exceptions.Timeout as timeout_err:
-            raise Flow.FlowTimeoutError(timeout_err)
+        # Check for connection/timeout 'requests' errors
+        except (requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout) as requests_err:
+            LOG.error(
+                "response method=%s id=%s: '%s'",
+                method,
+                rand_debug_req_id,
+                requests_err.message
+            )
+            if isinstance(requests_err, requests.exceptions.ConnectionError):
+                raise Flow.FlowConnectionError(requests_err)
+            else:
+                raise Flow.FlowTimeoutError(requests_err)
+
         response_data = json.loads(response.text, encoding='utf-8')
         LOG.debug(
             "response method=%s id=%s: HTTP %s, lat=%.2fs: %s",
@@ -489,7 +499,7 @@ class Flow(object):
         used by API calls."""
         return self._current_session
 
-    def start_up(self, username="", timeout=None, sid=0):
+    def start_up(self, username="", sid=0, timeout=None):
         """Starts the flowapp instance (notification internal loop, etc)
         for an account that is already created and has a device already
         configured in the current device.
@@ -522,8 +532,8 @@ class Flow(object):
             os_release=platform_module.release(),
             email_confirm_code="",
             totpverifier="",
-            timeout=None,
-            sid=0):
+            sid=0,
+            timeout=None):
         """Creates an account with the specified data.
         'phone_number', along with 'username' and 'server_uri'
         (these last two provided at 'start_up') must be unique.
@@ -554,8 +564,8 @@ class Flow(object):
                       password,
                       platform=sys.platform,
                       os_release=platform_module.release(),
-                      timeout=None,
-                      sid=0):
+                      sid=0,
+                      timeout=None):
         """CreateDevice creates a new device for an existing account,
         similar to CreateAccount in terms of parameters.
         It also starts the notification loop (like create_account).
@@ -576,7 +586,7 @@ class Flow(object):
         self.sessions[sid].start_notification_loop()
         return response
 
-    def account_id(self, timeout=None, sid=0):
+    def account_id(self, sid=0, timeout=None):
         """Returns the accountId for this account."""
         sid = self._get_session_id(sid)
         return self._run(
@@ -585,7 +595,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def new_org(self, name, discoverable=True, timeout=None, sid=0):
+    def new_org(self, name, discoverable=True, sid=0, timeout=None):
         """Creates a new organization. Returns an 'Org' dict."""
         sid = self._get_session_id(sid)
         return self._run(
@@ -596,7 +606,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def new_channel(self, oid, name, timeout=None, sid=0):
+    def new_channel(self, oid, name, sid=0, timeout=None):
         """Creates a new channel in a specific 'OrgID'.
         Returns a string that represents the `ChannelID` created.
         """
@@ -609,7 +619,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def enumerate_orgs(self, timeout=None, sid=0):
+    def enumerate_orgs(self, sid=0, timeout=None):
         """Lists all the orgs the caller is a member of.
         Returns array of 'Org' dicts.
         """
@@ -620,7 +630,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def enumerate_org_members(self, oid, timeout=None, sid=0):
+    def enumerate_org_members(self, oid, sid=0, timeout=None):
         """Lists all members for an org and their state."""
         sid = self._get_session_id(sid)
         return self._run(
@@ -630,7 +640,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def enumerate_channels(self, oid, timeout=None, sid=0):
+    def enumerate_channels(self, oid, sid=0, timeout=None):
         """Lists the channels available for an 'OrgID'.
         Returns an array of 'Channel' dicts.
         """
@@ -642,7 +652,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def enumerate_channel_members(self, cid, timeout=None, sid=0):
+    def enumerate_channel_members(self, cid, sid=0, timeout=None):
         """Lists the channel members for a given 'ChannelID'.
         Returns an array of 'ChannelMember' dicts.
         """
@@ -654,7 +664,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def new_attachment(self, oid, file_path, timeout=None, sid=0):
+    def new_attachment(self, oid, file_path, sid=0, timeout=None):
         """Returns an 'Attachment' dict ready to be used on send_message().
         file_path must be the absolute path.
         """
@@ -670,7 +680,7 @@ class Flow(object):
         return {"id": aid, "filename": file_basename}
 
     def start_attachment_download(
-            self, aid, oid, cid, mid, timeout=None, sid=0):
+            self, aid, oid, cid, mid, sid=0, timeout=None):
         """Requests download of an attachment.
         Status will be reported on the notification channel.
         """
@@ -685,7 +695,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def update_attachment_path(self, aid, new_path, timeout=None, sid=0):
+    def update_attachment_path(self, aid, new_path, sid=0, timeout=None):
         """Moves the attachment represented by the id
         specified to 'new_path', if it has completed
         uploading or downloading.
@@ -699,7 +709,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def stored_attachment_path(self, oid, aid, timeout=None, sid=0):
+    def stored_attachment_path(self, oid, aid, sid=0, timeout=None):
         """Returns the path where the attachment has been
         stored when the download is complete."""
         sid = self._get_session_id(sid)
@@ -712,7 +722,7 @@ class Flow(object):
         )
 
     def send_message(self, oid, cid, msg, attachments=None,
-                     other_data=None, timeout=None, sid=0):
+                     other_data=None, sid=0, timeout=None):
         """Sends a message to a channel this user is a member of.
         Returns a string that represents the 'MessageID'
         that has just been sent.
@@ -729,7 +739,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def wait_for_notification(self, timeout=None, sid=0):
+    def wait_for_notification(self, sid=0, timeout=None):
         """Returns the oldest unseen notification
         in the queue for this device.
         WARNING: it will block until there's a new notification
@@ -744,7 +754,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def enumerate_messages(self, oid, cid, filters=None, timeout=None, sid=0):
+    def enumerate_messages(self, oid, cid, filters=None, sid=0, timeout=None):
         """Lists all the messages for a channel.
         Returns an array of 'Message' dicts.
         """
@@ -758,7 +768,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def get_unread_count(self, oid, cid, timeout=None, sid=0):
+    def get_unread_count(self, oid, cid, sid=0, timeout=None):
         """Returns the amount of unread
         messages for a channel based on the known HWM.
         It will report up to 101 unread messages since
@@ -774,7 +784,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def search(self, oid, cid, search, timeout=None, sid=0):
+    def search(self, oid, cid, search, sid=0, timeout=None):
         """Returns a list of 'message' notification dicts for
         all messages matching a search string."""
         sid = self._get_session_id(sid)
@@ -787,7 +797,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def get_channel(self, cid, timeout=None, sid=0):
+    def get_channel(self, cid, sid=0, timeout=None):
         """Returns all the metadata for a channel the user is a member of.
         Returns a 'Channel' dict.
         """
@@ -799,7 +809,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def new_org_join_request(self, oid, timeout=None, sid=0):
+    def new_org_join_request(self, oid, sid=0, timeout=None):
         """Creates a new request to join an existing organization."""
         sid = self._get_session_id(sid)
         self._run(
@@ -809,7 +819,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def enumerate_org_join_requests(self, oid, timeout=None, sid=0):
+    def enumerate_org_join_requests(self, oid, sid=0, timeout=None):
         """Lists all the join requests for an 'OrgID'.
         Returns an array of 'OrgJoinRequest' dicts.
         """
@@ -822,7 +832,7 @@ class Flow(object):
         )
 
     def org_add_member(self, oid, account_id,
-                       member_state, timeout=None, sid=0):
+                       member_state, sid=0, timeout=None):
         """Adds a member to an organization, assuming the user has
         the proper permissions.
         'member_state' argument valid values are
@@ -839,7 +849,7 @@ class Flow(object):
         )
 
     def channel_add_member(self, oid, cid, account_id,
-                           member_state, timeout=None, sid=0):
+                           member_state, sid=0, timeout=None):
         """Adds the specified member to the channel as long as
         the requestor has the right permissions.
         """
@@ -854,7 +864,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def new_direct_conversation(self, oid, account_id, timeout=None, sid=0):
+    def new_direct_conversation(self, oid, account_id, sid=0, timeout=None):
         """Creates a new channel to initiate a
         direct conversation with another user.
         Returns a 'ChannelID'.
@@ -868,7 +878,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def get_peer(self, username, timeout=None, sid=0):
+    def get_peer(self, username, sid=0, timeout=None):
         """Returns all the metadata of a peer from username.
         Returns a 'Peer' dict.
         """
@@ -880,7 +890,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def get_peer_from_id(self, account_id, timeout=None, sid=0):
+    def get_peer_from_id(self, account_id, sid=0, timeout=None):
         """Returns all the metadata of a peer from account id.
         Returns a 'Peer' dict.
         """
@@ -901,7 +911,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def enumerate_peer_accounts(self, timeout=None, sid=0):
+    def enumerate_peer_accounts(self, sid=0, timeout=None):
         """Lists all the peer accounts.
         Returns an array of 'Peer' dicts.
         """
@@ -916,8 +926,8 @@ class Flow(object):
                              oid,
                              member_account_id,
                              member_state,
-                             timeout=None,
-                             sid=0):
+                             sid=0,
+                             timeout=None):
         """Sets the Org member state for a given account.
         'member_state' can be one of the following:
         'a' (admin), 'm' (member), 'o' (owner), 'b' (blocked).
@@ -937,8 +947,8 @@ class Flow(object):
                                  cid,
                                  member_account_id,
                                  member_state,
-                                 timeout=None,
-                                 sid=0):
+                                 sid=0,
+                                 timeout=None):
         """Sets the Channel member state for a given account.
         'member_state' can be one of the following:
         'a' (admin), 'm' (member), 'o' (owner), 'b' (blocked).
@@ -954,7 +964,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def get_devices(self, timeout=None, sid=0):
+    def get_devices(self, sid=0, timeout=None):
         """Returns all devices associated to the current account.
         Returns a list of 'Device' dicts.
         """
@@ -965,7 +975,16 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def start_d2d_rendezvous(self, timeout=None, sid=0):
+    def device_id(self, sid=0, timeout=None):
+        """Returns the DeviceId of the current device."""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="DeviceId",
+            SessionID=sid,
+            timeout=timeout,
+        )
+
+    def start_d2d_rendezvous(self, sid=0, timeout=None):
         """StartD2DRendezvous generates a 32 random bytes for usage as a
         rendezvous ID in device to device provsioning and a key pair for DH.
         It returns the 32 random bytes for them to be shared in some way
@@ -979,7 +998,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def provision_new_device(self, timeout=None, sid=0):
+    def provision_new_device(self, sid=0, timeout=None):
         """ProvisionNewDevice pushes the provisioning payload for
         a new device to be created from it.
         Only the established device uses this after
@@ -999,8 +1018,8 @@ class Flow(object):
                                       device_name,
                                       platform=sys.platform,
                                       os_release=platform_module.release(),
-                                      timeout=None,
-                                      sid=0):
+                                      sid=0,
+                                      timeout=None):
         """CreateDeviceFromRendezvous creates a new device by downloading a
         provisioning payload using the rendezvousID.
         Only the new device uses this method.
@@ -1019,7 +1038,7 @@ class Flow(object):
         )
         self.sessions[sid].start_notification_loop()
 
-    def cancel_rendezvous(self, timeout=None, sid=0):
+    def cancel_rendezvous(self, sid=0, timeout=None):
         """CancelRendezvous tries cancelling an ongoing rendezvous, if any."""
         sid = self._get_session_id(sid)
         self._run(
@@ -1038,7 +1057,7 @@ class Flow(object):
         ))
         return content
 
-    def set_profile(self, item, content, timeout=None, sid=0):
+    def set_profile(self, item, content, sid=0, timeout=None):
         """CancelRendezvous tries cancelling an ongoing rendezvous, if any."""
         sid = self._get_session_id(sid)
         self._run(
@@ -1049,7 +1068,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def identifier(self, timeout=None, sid=0):
+    def identifier(self, sid=0, timeout=None):
         """Identifier returns the Username and ServerURI for this account.
         Returns an 'AccountIdentifier' dict.
         """
@@ -1060,7 +1079,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def peer_data(self, timeout=None, sid=0):
+    def peer_data(self, sid=0, timeout=None):
         """Returns 'Peer' dict for this account."""
         sid = self._get_session_id(sid)
         return self._run(
@@ -1074,8 +1093,8 @@ class Flow(object):
                             account_id,
                             keyring_id,
                             verification_method,
-                            timeout=None,
-                            sid=0):
+                            sid=0,
+                            timeout=None):
         """Peer Key Verification for web of trust."""
         sid = self._get_session_id(sid)
         return self._run(
@@ -1088,7 +1107,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def set_channel_read_hwm(self, oid, cid, mid, timeout=None, sid=0):
+    def set_channel_read_hwm(self, oid, cid, mid, sid=0, timeout=None):
         """Sets a new HWM for an account in a channel."""
         sid = self._get_session_id(sid)
         self._run(
@@ -1101,8 +1120,8 @@ class Flow(object):
         )
 
     def verification_hash(self,
-                          timeout=None,
-                          sid=0):
+                          sid=0,
+                          timeout=None):
         """Returns the verification hash for this account."""
         sid = self._get_session_id(sid)
         return self._run(
@@ -1115,8 +1134,8 @@ class Flow(object):
                                username,
                                fingerprint,
                                provided_hash,
-                               timeout=None,
-                               sid=0):
+                               sid=0,
+                               timeout=None):
         """Computes:
         hash(username + separator + serverURI + separator + fingerprint)
         for the specified account and compares it in constant time
@@ -1135,8 +1154,8 @@ class Flow(object):
 
     def confirm_email(self,
                       username,
-                      timeout=None,
-                      sid=0):
+                      sid=0,
+                      timeout=None):
         """Sends a confirmation request to the server
         The server will email a confirm code to the specified address
         The caller should use the code as the 'email_confirm_code' argument
@@ -1154,8 +1173,8 @@ class Flow(object):
     def rotate_channel_session_key(self,
                                    oid,
                                    cid,
-                                   timeout=None,
-                                   sid=0):
+                                   sid=0,
+                                   timeout=None):
         """Declares a new channel session key
         and notifies all channel members.
         """
@@ -1171,8 +1190,8 @@ class Flow(object):
     def delete_channel(self,
                        oid,
                        cid,
-                       timeout=None,
-                       sid=0):
+                       sid=0,
+                       timeout=None):
         """Removes a channel by banning all channel members."""
         sid = self._get_session_id(sid)
         self._run(
@@ -1183,7 +1202,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def pause(self, timeout=None, sid=0):
+    def pause(self, sid=0, timeout=None):
         """Disconnect from the notification service.
         Any existing already-in-progress
         request to the server may continue.
@@ -1195,7 +1214,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def resume(self, timeout=None, sid=0):
+    def resume(self, sid=0, timeout=None):
         """Resume after a 'pause' operation."""
         sid = self._get_session_id(sid)
         self._run(
@@ -1204,7 +1223,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def close(self, timeout=None, sid=0):
+    def close(self, sid=0, timeout=None):
         """Closes a session and cleanly finishes any long running operations.
         It could be seen as a logout.
         """
