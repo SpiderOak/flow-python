@@ -26,6 +26,19 @@ class Flow(object):
     Request/Responses are synchronous.
     """
 
+    class FlowError(Exception):
+        """Exception class for Flow service related errors."""
+        pass
+
+    class FlowConnectionError(Exception):
+        """Exception class for Flow connection related errors."""
+        pass
+
+    class FlowTimeoutError(Exception):
+        """Exception class for Flow connection timeout related errors."""
+        pass
+
+
     # Notification Types
     ORG_NOTIFICATION = "org"
     CHANNEL_NOTIFICATION = "channel"
@@ -186,12 +199,19 @@ class Flow(object):
             while self.listen_notifications.is_set():
                 try:
                     changes = self.flow.wait_for_notification(sid=self.sid)
-                except Flow.FlowError as flow_err:
+                except Exception as flow_err:
                     self._queue_error(str(flow_err))
                 else:
                     self.callback_lock.acquire()
                     self._queue_changes(changes)
                     self.callback_lock.release()
+
+        def get_queued_error(self, timeout_secs):
+            """Retrieves and returns an error from the error queue."""
+            return self.error_queue.get(
+                block=True,
+                timeout=timeout_secs,
+            )
 
         def consume_notification(self, timeout_secs):
             """Consumes the notification queue for this session
@@ -229,18 +249,6 @@ class Flow(object):
             if self.notification_thread.is_alive():
                 self.notification_thread.join()
 
-    class FlowError(Exception):
-        """Exception class for Flow service related errors."""
-        pass
-
-    class FlowConnectionError(Exception):
-        """Exception class for Flow connection related errors."""
-        pass
-
-    class FlowTimeoutError(Exception):
-        """Exception class for Flow connection timeout related errors."""
-        pass
-
     def __init__(
             self,
             username="",
@@ -270,7 +278,8 @@ class Flow(object):
             self._flowappglue = subprocess.Popen(
                 [flowappglue, "0"],
                 stdout=subprocess.PIPE,
-                stderr=log_file)
+                stderr=log_file,
+            )
         token_port_line = json.loads(self._flowappglue.stdout.readline())
         self._token = token_port_line["token"]
         self._port = token_port_line["port"]
@@ -321,8 +330,10 @@ class Flow(object):
             dict(
                 method=method,
                 params=[params],
-                token=self._token),
-            indent=2)
+                token=self._token,
+            ),
+            indent=2,
+        )
         rand_debug_req_id = self.gen_rand_req_id()
         LOG.debug(
             "request method=%s id=%s: %s",
@@ -333,17 +344,16 @@ class Flow(object):
                 self._port,
                 headers={'Content-type': 'application/json'},
                 timeout=timeout,
-                data=request_str)
-        # Check for connection/timeout 'requests' errors
-        except (requests.exceptions.ConnectionError,
-                requests.exceptions.Timeout) as requests_err:
+                data=request_str,
+            )
+        except (requests.ConnectionError, requests.Timeout) as requests_err:
             LOG.error(
                 "response method=%s id=%s: '%s'",
                 method,
                 rand_debug_req_id,
-                requests_err.message
+                str(requests_err),
             )
-            if isinstance(requests_err, requests.exceptions.ConnectionError):
+            if isinstance(requests_err, requests.ConnectionError):
                 raise Flow.FlowConnectionError(requests_err)
             else:
                 raise Flow.FlowTimeoutError(requests_err)
@@ -442,14 +452,11 @@ class Flow(object):
         Returns 'None' if there's no error on the queue.
         Arguments:
         timeout_secs : float, seconds to block on the notification queue.
-        sid : int, SessionI.
+        sid : int, SessionId.
         """
         sid = self._get_session_id(sid)
         try:
-            error = self.sessions[sid].error_queue.get(
-                block=True,
-                timeout=timeout_secs,
-            )
+            error = self.sessions[sid].get_queued_error(timeout_secs)
         except Queue.Empty:
             error = None
         return error
