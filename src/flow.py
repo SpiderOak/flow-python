@@ -19,6 +19,7 @@ import requests
 from . import definitions
 
 LOG = logging.getLogger("flow")
+LOG.addHandler(logging.NullHandler())
 
 
 class Flow(object):
@@ -37,7 +38,6 @@ class Flow(object):
     class FlowTimeoutError(Exception):
         """Exception class for Flow connection timeout related errors."""
         pass
-
 
     # Notification Types
     ORG_NOTIFICATION = "org"
@@ -296,6 +296,7 @@ class Flow(object):
         """Shuts down the flowappglue local server.
         It must be called when you are done using the Flow API.
         """
+        # TODO: call 'Close' flowapp API here as soon as it is supported
         # Terminate the flowappglue process
         if self._flowappglue:
             self._flowappglue.terminate()
@@ -347,12 +348,6 @@ class Flow(object):
                 data=request_str,
             )
         except (requests.ConnectionError, requests.Timeout) as requests_err:
-            LOG.error(
-                "response method=%s id=%s: '%s'",
-                method,
-                rand_debug_req_id,
-                str(requests_err),
-            )
             if isinstance(requests_err, requests.ConnectionError):
                 raise Flow.FlowConnectionError(requests_err)
             else:
@@ -454,11 +449,13 @@ class Flow(object):
         timeout_secs : float, seconds to block on the notification queue.
         sid : int, SessionId.
         """
+        error = None
         sid = self._get_session_id(sid)
-        try:
-            error = self.sessions[sid].get_queued_error(timeout_secs)
-        except Queue.Empty:
-            error = None
+        if sid in self.sessions:
+            try:
+                error = self.sessions[sid].get_queued_error(timeout_secs)
+            except Queue.Empty:
+                pass
         return error
 
     def set_processing_notifications(self, value=True):
@@ -1237,17 +1234,3 @@ class Flow(object):
         sid = self._get_session_id(sid)
         self.sessions[sid].close()
         del self.sessions[sid]
-        # TODO: 'Close' fails with error
-        # "Caused by <class 'socket.error'>:
-        # [Errno 104] Connection reset by peer"
-        # because of two possible scenarios:
-        # loop thread is blocked in a wait_for_notification call
-        # or flowappglue is not running anymore.
-        try:
-            self._run(
-                method="Close",
-                SessionID=sid,
-                timeout=timeout,
-            )
-        except Exception as exception:
-            LOG.debug("%s", str(exception))
