@@ -4,6 +4,7 @@ definitions.py
 
 import os
 import sys
+import time
 
 
 # Sane default definitions
@@ -110,3 +111,14 @@ def get_default_flowappglue_path():
         _APP_OS_PATH_MAP[sys.platform](),
         _DEFAULT_FLOWAPPGLUE_BINARY_DEV_NAME)
     return flowappglue_path
+
+
+def get_default_glue_out_filename():
+    """Returns a string with a default filename for the
+    flowappglue output log file.
+    Default Format: "semaphor_backend_%Y%m%d%H%M%S.log".
+    """
+    return os.path.join(
+        get_default_db_path(),
+        time.strftime("semaphor_backend_%Y%m%d%H%M%S.log")
+    )
