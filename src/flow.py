@@ -95,7 +95,7 @@ class Flow(object):
         UPLOAD_START_NOTIFICATION)
     upload_progress_event = _make_notification_decorator(
         UPLOAD_PROGRESS_NOTIFICATION)
-    upload_compete_event = _make_notification_decorator(
+    upload_complete_event = _make_notification_decorator(
         UPLOAD_COMPLETE_NOTIFICATION)
     upload_error_event = _make_notification_decorator(
         UPLOAD_ERROR_NOTIFICATION)
