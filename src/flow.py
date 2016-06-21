@@ -13,6 +13,7 @@ import os
 import string
 import random
 import logging
+import time
 
 import requests
 
@@ -292,14 +293,34 @@ class Flow(object):
         if username:
             self.start_up(username)
 
-    def terminate(self):
-        """Shuts down the flowappglue local server.
-        It must be called when you are done using the Flow API.
+    def terminate(self, timeout_secs=5):
+        """Shuts down the semaphor-backend local server.
+        Use this when you are done using the Flow API with this object.
+        It will first send a SIGTERM to the semaphor-backend process,
+        if the process does not finish the execution,
+        it will wait 'timeout_secs' before sending SIGKILL
+        to the semaphor-backend process.
         """
         # TODO: call 'Close' flowapp API here as soon as it is supported
+        start = time.time()
+
         # Terminate the flowappglue process
-        if self._flowappglue:
+        if self._flowappglue and self._flowappglue.poll() is None:
             self._flowappglue.terminate()
+
+        # Wait for process termination
+        if self._flowappglue:
+            while self._flowappglue.poll() is None:
+                time.sleep(1)
+                if (time.time() - start) > timeout_secs:
+                    LOG.warn(
+                        "semaphor-backend %d secs. timeout reached, "
+                        "sending SIGKILL to process",
+                        timeout_secs,
+                    )
+                    self._flowappglue.kill()
+                    break
+
         # Close all sessions
         sids = list(self.sessions.keys())
         for sid in sids:
@@ -1251,7 +1272,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def close(self, sid=0, timeout=None):
+    def close(self, sid=0):
         """Closes a session and cleanly finishes any long running operations.
         It could be seen as a logout.
         """
