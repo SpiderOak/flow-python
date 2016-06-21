@@ -644,6 +644,18 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def enumerate_org_member_history(self, oid, sid=0, timeout=None):
+        """Lists all member history for an org and their state.
+        Returns an array of 'OrgMember' dicts.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="EnumerateOrgMemberHistory",
+            SessionID=sid,
+            OrgID=oid,
+            timeout=timeout,
+        )
+
     def enumerate_channels(self, oid, sid=0, timeout=None):
         """Lists the channels available for an 'OrgID'.
         Returns an array of 'Channel' dicts.
@@ -663,6 +675,18 @@ class Flow(object):
         sid = self._get_session_id(sid)
         return self._run(
             method="EnumerateChannelMembers",
+            SessionID=sid,
+            ChannelID=cid,
+            timeout=timeout,
+        )
+
+    def enumerate_channel_member_history(self, cid, sid=0, timeout=None):
+        """Lists the channel member history for a given 'ChannelID'.
+        Returns an array of 'ChannelMember' dicts.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="EnumerateChannelMemberHistory",
             SessionID=sid,
             ChannelID=cid,
             timeout=timeout,
