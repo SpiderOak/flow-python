@@ -562,6 +562,41 @@ class Flow(object):
         )
         self.sessions[sid].start_notification_loop()
 
+    def create_dm_account(
+            self,
+            username,
+            password,
+            device_name,
+            phone_number,
+            dmk,
+            platform=sys.platform,
+            os_release=platform_module.release(),
+            totpverifier="",
+            sid=0,
+            timeout=None):
+        """Creates a directory management account with the specified data.
+        'phone_number', along with 'username' and 'server_uri' (these last two
+        provided at 'start_up') must be unique.  This call also starts the
+        notification loop for this session.
+        """
+        sid = self._get_session_id(sid)
+        self._run(
+            method="CreateDMAccount",
+            SessionID=sid,
+            PhoneNumber=phone_number,
+            DeviceName=device_name,
+            Username=username,
+            ServerURI=self.server_uri,
+            Platform=platform,
+            OSRelease=os_release,
+            Password=password,
+            TotpVerifier=totpverifier,
+            DMK=dmk,
+            NotifyToken="",
+            timeout=timeout,
+        )
+        self.sessions[sid].start_notification_loop()
+
     def create_device(self,
                       username,
                       device_name,
