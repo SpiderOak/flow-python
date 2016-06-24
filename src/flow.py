@@ -1242,23 +1242,6 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def rotate_channel_session_key(self,
-                                   oid,
-                                   cid,
-                                   sid=0,
-                                   timeout=None):
-        """Declares a new channel session key
-        and notifies all channel members.
-        """
-        sid = self._get_session_id(sid)
-        self._run(
-            method="RotateChannelSessionKey",
-            SessionID=sid,
-            OrgID=oid,
-            ChannelID=cid,
-            timeout=timeout,
-        )
-
     def delete_channel(self,
                        oid,
                        cid,
