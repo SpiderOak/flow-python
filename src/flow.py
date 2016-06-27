@@ -547,16 +547,30 @@ class Flow(object):
         )
         self.sessions[sid].start_notification_loop()
 
+    @staticmethod
+    def _gen_random_number(digits_count):
+        """Returns a random number string.
+        Used for generating a random 'phone_number' and 'totp_verifier'.
+        """
+        return "".join(
+            random.choice(string.digits) \
+            for _ in range(digits_count)
+        )
+
+    def _gen_device_name(self):
+        """Returns a random device name string."""
+        return "dev-%s" % self._gen_random_number(15)
+
     def create_account(
             self,
             username,
             password,
-            device_name,
-            phone_number,
+            device_name="",
+            phone_number="",
             platform=sys.platform,
             os_release=platform_module.release(),
             email_confirm_code="",
-            totpverifier="",
+            totp_verifier="",
             sid=0,
             timeout=None):
         """Creates an account with the specified data.
@@ -565,6 +579,12 @@ class Flow(object):
         This call also starts the notification
         loop for this session.
         """
+        if not phone_number:
+            phone_number = self._gen_random_number(15)
+        if not totp_verifier:
+            totp_verifier = self._gen_random_number(15)
+        if not device_name:
+            device_name = self._gen_device_name()
         sid = self._get_session_id(sid)
         self._run(
             method="CreateAccount",
@@ -576,7 +596,7 @@ class Flow(object):
             Platform=platform,
             OSRelease=os_release,
             Password=password,
-            TotpVerifier=totpverifier,
+            TotpVerifier=totp_verifier,
             EmailConfirmCode=email_confirm_code,
             NotifyToken="",
             timeout=timeout,
@@ -585,8 +605,8 @@ class Flow(object):
 
     def create_device(self,
                       username,
-                      device_name,
                       password,
+                      device_name="",
                       platform=sys.platform,
                       os_release=platform_module.release(),
                       sid=0,
@@ -596,6 +616,8 @@ class Flow(object):
         It also starts the notification loop (like create_account).
         Returns a 'Device' dict.
         """
+        if not device_name:
+            device_name = self._gen_device_name()
         sid = self._get_session_id(sid)
         response = self._run(
             method="CreateDevice",
@@ -1087,7 +1109,7 @@ class Flow(object):
 
     def create_device_from_rendezvous(self,
                                       rendezvous_id,
-                                      device_name,
+                                      device_name="",
                                       platform=sys.platform,
                                       os_release=platform_module.release(),
                                       sid=0,
@@ -1098,6 +1120,8 @@ class Flow(object):
         This call also starts the notification
         loop for this session.
         """
+        if not device_name:
+            device_name = self._gen_device_name()
         sid = self._get_session_id(sid)
         self._run(
             method="CreateDeviceFromD2D",
