@@ -607,12 +607,12 @@ class Flow(object):
             self,
             username,
             password,
-            device_name,
-            phone_number,
             dmk,
+            device_name="",
+            phone_number="",
             platform=sys.platform,
             os_release=platform_module.release(),
-            totpverifier="",
+            totp_verifier="",
             sid=0,
             timeout=None):
         """Creates a directory management account with the specified data.
@@ -620,6 +620,12 @@ class Flow(object):
         provided at 'start_up') must be unique.  This call also starts the
         notification loop for this session.
         """
+        if not phone_number:
+            phone_number = self._gen_random_number(15)
+        if not totp_verifier:
+            totp_verifier = self._gen_random_number(15)
+        if not device_name:
+            device_name = self._gen_device_name()
         sid = self._get_session_id(sid)
         self._run(
             method="CreateDMAccount",
@@ -631,7 +637,7 @@ class Flow(object):
             Platform=platform,
             OSRelease=os_release,
             Password=password,
-            TotpVerifier=totpverifier,
+            TotpVerifier=totp_verifier,
             DMK=dmk,
             NotifyToken="",
             timeout=timeout,
