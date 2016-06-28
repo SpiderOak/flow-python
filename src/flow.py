@@ -644,6 +644,34 @@ class Flow(object):
         )
         self.sessions[sid].start_notification_loop()
 
+    def setup_ldap_account(
+            self,
+            username,
+            password,
+            phone_number="",
+            totp_verifier="",
+            sid=0,
+            timeout=None):
+        """Setups an LDAP account with the specified data.  'phone_number',
+        along with 'username' and 'server_uri' (these last two provided at
+        'start_up') must be unique.
+        """
+        if not phone_number:
+            phone_number = self._gen_random_number(15)
+        if not totp_verifier:
+            totp_verifier = self._gen_random_number(15)
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="SetupLDAPAccount",
+            SessionID=sid,
+            PhoneNumber=phone_number,
+            Username=username,
+            ServerURI=self.server_uri,
+            Password=password,
+            TotpVerifier=totp_verifier,
+            timeout=timeout,
+        )
+
     def create_device(self,
                       username,
                       password,
