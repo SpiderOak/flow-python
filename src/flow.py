@@ -1350,6 +1350,18 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def fetch_ldap_public_key(self, username, sid=0, timeout=None):
+        """Fetch the public key for the LDAP management account for the given
+        username (assuming it's an email)"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="FetchLDAPPublicKey",
+            SessionID=sid,
+            Username=username,
+            ServerURI=self.server_uri,
+            timeout=timeout,
+        )
+
     def pause(self, sid=0, timeout=None):
         """Disconnect from the notification service.
         Any existing already-in-progress
