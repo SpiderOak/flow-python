@@ -672,6 +672,36 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def create_ldap_device(self,
+                           username,
+                           ldap_password,
+                           device_name="",
+                           platform=sys.platform,
+                           os_release=platform_module.release(),
+                           sid=0,
+                           timeout=None):
+        """Creates a new device for an existing LDAPed account,
+        similar to 'create_device' in terms of parameters.
+        It also starts the notification loop (like 'create_device').
+        Returns a 'Device' dict.
+        """
+        if not device_name:
+            device_name = self._gen_device_name()
+        sid = self._get_session_id(sid)
+        response = self._run(
+            method="CreateLDAPDevice",
+            SessionID=sid,
+            Username=username,
+            ServerURI=self.server_uri,
+            DeviceName=device_name,
+            LDAPPassword=ldap_password,
+            Platform=platform,
+            OSRelease=os_release,
+            timeout=timeout,
+        )
+        # self.sessions[sid].start_notification_loop()
+        return response
+
     def create_device(self,
                       username,
                       password,
