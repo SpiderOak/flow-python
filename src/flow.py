@@ -1154,13 +1154,35 @@ class Flow(object):
         return content
 
     def set_profile(self, item, content, sid=0, timeout=None):
-        """CancelRendezvous tries cancelling an ongoing rendezvous, if any."""
+        """Sets the given item with content"""
         sid = self._get_session_id(sid)
         self._run(
             method="SetProfile",
             SessionID=sid,
             Content=content,
             Item=item,
+            timeout=timeout,
+        )
+
+    def change_username(self, username, password, email_confirm_code="", sid=0, timeout=None):
+        """Changes the username for the current account"""
+        sid = self._get_session_id(sid)
+        self._run(
+            method="ChangeUsername",
+            SessionID=sid,
+            Username=username,
+            Password=password,
+            EmailConfirmCode=email_confirm_code,
+            timeout=timeout,
+        )
+
+    def change_password(self, password, sid=0, timeout=None):
+        """Changes the password for the current account"""
+        sid = self._get_session_id(sid)
+        self._run(
+            method="ChangePassword",
+            SessionID=sid,
+            Password=password,
             timeout=timeout,
         )
 
