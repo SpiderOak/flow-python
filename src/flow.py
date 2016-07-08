@@ -60,6 +60,7 @@ class Flow(object):
     DOWNLOAD_ERROR_NOTIFICATION = "download-error-event"
     CHANNEL_SESSION_KEY_NOTIFICATION = "channel-session-key"
     CHANNEL_SESSION_KEY_SHARE_NOTIFICATION = "channel-session-key-share"
+    LDAP_BIND_REQUEST_NOTIFICATION = "ldap-bind-request"
 
     def _make_notification_decorator(name):
         """Generates decorator functions for all notifications.
@@ -112,6 +113,8 @@ class Flow(object):
         CHANNEL_SESSION_KEY_NOTIFICATION)
     channel_session_key_share = _make_notification_decorator(
         CHANNEL_SESSION_KEY_SHARE_NOTIFICATION)
+    ldap_bind_request = _make_notification_decorator(
+        LDAP_BIND_REQUEST_NOTIFICATION)
 
     class _Session(object):
         """Internal class to hold session data."""
@@ -553,7 +556,7 @@ class Flow(object):
         Used for generating a random 'phone_number' and 'totp_verifier'.
         """
         return "".join(
-            random.choice(string.digits) \
+            random.choice(string.digits)
             for _ in range(digits_count)
         )
 
@@ -699,7 +702,7 @@ class Flow(object):
             OSRelease=os_release,
             timeout=timeout,
         )
-        # self.sessions[sid].start_notification_loop()
+        self.sessions[sid].start_notification_loop()
         return response
 
     def create_device(self,
@@ -1389,6 +1392,33 @@ class Flow(object):
             SessionID=sid,
             Username=username,
             ServerURI=self.server_uri,
+            timeout=timeout,
+        )
+
+    def ldap_bind_response(self,
+                           username,
+                           secure_exchange_token,
+                           bind_result,
+                           level2_secret,
+                           sid=0,
+                           timeout=None):
+        """Sends the LDAP bind result of the given user to the server.
+        Arguments:
+        - secure_exchange_token: string, this is the secure_exchange_token
+        string returned in the 'ldap-bind-request' notification.
+        - bind_result: bool, True if the LDAP bind was successful.
+        - level2_secret: string, if bind_result is True, then this is encrypted
+        and send to the client at the other end.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="LDAPBindResponse",
+            SessionID=sid,
+            Username=username,
+            ServerURI=self.server_uri,
+            SecureExchangeToken=secure_exchange_token,
+            BindResult=bind_result,
+            Level2Secret=level2_secret,
             timeout=timeout,
         )
 
