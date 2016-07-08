@@ -62,6 +62,11 @@ class Flow(object):
     CHANNEL_SESSION_KEY_SHARE_NOTIFICATION = "channel-session-key-share"
     LDAP_BIND_REQUEST_NOTIFICATION = "ldap-bind-request"
 
+    # Lock types
+    UNLOCK = 1
+    FULL_LOCK = 2
+    LDAP_LOCK = 3
+
     def _make_notification_decorator(name):
         """Generates decorator functions for all notifications.
         E.g. the 'message' notification decorator usage:
@@ -1509,6 +1514,18 @@ class Flow(object):
         return self._run(
             method="LDAPed",
             SessionID=sid,
+            timeout=timeout,
+        )
+
+    def set_account_lock(self, username, lock_type, sid=0, timeout=None):
+        """"""
+        sid = self._get_session_id(sid)
+        self._run(
+            method="SetAccountLock",
+            SessionID=sid,
+            Username=username,
+            ServerURI=self.server_uri,
+            LockTYpe=lock_type,
             timeout=timeout,
         )
 
