@@ -229,12 +229,13 @@ class Flow(object):
                         block=True, timeout=timeout_secs)
                 try:
                     self.callback_lock.acquire()
+                    if notification["type"] not in self.callbacks:
+                        raise Exception(
+                            "Notification of type '%s' not supported.",
+                            notification["type"],
+                        )
                     self.callbacks[notification["type"]](
                         notification["type"], notification["data"])
-                except KeyError:
-                    LOG.debug(
-                        "Notification of type '%s' not supported.",
-                        notification["type"])
                 except Exception as exception:
                     LOG.debug("Error: %s", str(exception))
                 finally:
