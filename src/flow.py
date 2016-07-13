@@ -126,6 +126,7 @@ class Flow(object):
             flow : Flow instance
             sid : int, SessionID
             """
+            self.flowappglue = flow._flowappglue
             self.sid = sid
             self.flow = flow
             self.callbacks = {}  # Notification Name -> Function Object
@@ -205,6 +206,9 @@ class Flow(object):
                     changes = self.flow.wait_for_notification(sid=self.sid)
                 except Exception as flow_err:
                     self._queue_error(str(flow_err))
+                    # Check whether flowappglue finished execution
+                    if self.flowappglue.poll() is not None:
+                        break
                 else:
                     self.callback_lock.acquire()
                     self._queue_changes(changes)
