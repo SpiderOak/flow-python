@@ -1449,6 +1449,48 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def link_ldap_account(self,
+                          username,
+                          secure_exchange_token,
+                          bind_result,
+                          level2_secret,
+                          sid=0,
+                          timeout=None):
+        """Sends the LDAP bind result of the given user to the server.
+        Arguments:
+        - secure_exchange_token: string, this is the secure_exchange_token
+        string returned in the 'ldap-bind-request' notification.
+        - bind_result: bool, True if the LDAP bind was successful.
+        - level2_secret: string
+        Returns a string with the new flow generated password.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="LinkLDAPAccount",
+            SessionID=sid,
+            Username=username,
+            ServerURI=self.server_uri,
+            SecureExchangeToken=secure_exchange_token,
+            BindResult=bind_result,
+            Level2Secret=level2_secret,
+            timeout=timeout,
+        )
+
+    def link_to_ldap(self,
+                     ldap_password,
+                     sid=0,
+                     timeout=None):
+        """Sends the LDAP credentials to the LDAP bot and flags the account as
+        an LDAPd account on the server side.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="LinkToLDAP",
+            SessionID=sid,
+            LDAPPassword=ldap_password,
+            timeout=timeout,
+        )
+
     def pause(self, sid=0, timeout=None):
         """Disconnect from the notification service.
         Any existing already-in-progress
