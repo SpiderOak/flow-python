@@ -1271,7 +1271,8 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def change_username(self, username, password, email_confirm_code="", sid=0, timeout=None):
+    def change_username(self, username, password,
+                        email_confirm_code="", sid=0, timeout=None):
         """Changes the username for the current account"""
         sid = self._get_session_id(sid)
         self._run(
@@ -1488,6 +1489,17 @@ class Flow(object):
             method="LinkToLDAP",
             SessionID=sid,
             LDAPPassword=ldap_password,
+            timeout=timeout,
+        )
+
+    def ldaped(self,
+               sid=0,
+               timeout=None):
+        """Returns whether the account is LDAPed or not."""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="LDAPed",
+            SessionID=sid,
             timeout=timeout,
         )
 
