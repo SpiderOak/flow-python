@@ -749,6 +749,15 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def keyring_fingerprint(self, sid=0, timeout=None):
+        """Returns the fingerprint of the last keyring on this account."""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="KeyRingFingerprint",
+            SessionID=sid,
+            timeout=timeout,
+        )
+
     def new_org(self, name, discoverable=True, sid=0, timeout=None):
         """Creates a new organization. Returns an 'Org' dict."""
         sid = self._get_session_id(sid)
