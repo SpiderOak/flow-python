@@ -32,11 +32,11 @@ class Flow(object):
         """Exception class for Flow service related errors."""
         pass
 
-    class FlowConnectionError(Exception):
+    class FlowConnectionError(FlowError):
         """Exception class for Flow connection related errors."""
         pass
 
-    class FlowTimeoutError(Exception):
+    class FlowTimeoutError(FlowError):
         """Exception class for Flow connection timeout related errors."""
         pass
 
@@ -66,6 +66,7 @@ class Flow(object):
     UNLOCK = 1
     FULL_LOCK = 2
     LDAP_LOCK = 3
+    DOMAIN_LOCK = 4
 
     def _make_notification_decorator(name):
         """Generates decorator functions for all notifications.
