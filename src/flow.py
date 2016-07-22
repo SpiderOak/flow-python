@@ -66,7 +66,6 @@ class Flow(object):
     UNLOCK = 1
     FULL_LOCK = 2
     LDAP_LOCK = 3
-    DOMAIN_LOCK = 4
 
     def _make_notification_decorator(name):
         """Generates decorator functions for all notifications.
@@ -1526,7 +1525,7 @@ class Flow(object):
             SessionID=sid,
             Username=username,
             ServerURI=self.server_uri,
-            LockTYpe=lock_type,
+            LockType=lock_type,
             timeout=timeout,
         )
 
