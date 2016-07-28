@@ -655,14 +655,14 @@ class Flow(object):
     def setup_ldap_account(
             self,
             username,
-            password,
             phone_number="",
             totp_verifier="",
             sid=0,
             timeout=None):
-        """Setups an LDAP account with the specified data.  'phone_number',
+        """Setups an LDAP account with the specified data. 'phone_number',
         along with 'username' and 'server_uri' (these last two provided at
         'start_up') must be unique.
+        Returns a dict with the generated password and level2Secret.
         """
         if not phone_number:
             phone_number = self._gen_random_number(15)
@@ -675,7 +675,6 @@ class Flow(object):
             PhoneNumber=phone_number,
             Username=username,
             ServerURI=self.server_uri,
-            Password=password,
             TotpVerifier=totp_verifier,
             timeout=timeout,
         )
