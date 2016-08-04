@@ -618,9 +618,9 @@ class Flow(object):
 
     def create_dm_account(
             self,
-            username,
-            password,
             dmk,
+            username="",
+            password="",
             device_name="",
             phone_number="",
             platform=sys.platform,
@@ -629,9 +629,10 @@ class Flow(object):
             sid=0,
             timeout=None):
         """Creates a directory management account with the specified data.
-        'phone_number', along with 'username' and 'server_uri' (these last two
-        provided at 'start_up') must be unique.  This call also starts the
-        notification loop for this session.
+        This call also starts the notification loop for this session.
+        If username is not provided, then it generates a random username, it
+        also generates a random password for the account.
+        Returns both the auto-generated username and password.
         """
         if not phone_number:
             phone_number = self._gen_random_number(15)
@@ -640,7 +641,7 @@ class Flow(object):
         if not device_name:
             device_name = self._gen_device_name()
         sid = self._get_session_id(sid)
-        self._run(
+        response = self._run(
             method="CreateDMAccount",
             SessionID=sid,
             PhoneNumber=phone_number,
@@ -656,6 +657,7 @@ class Flow(object):
             timeout=timeout,
         )
         self.sessions[sid].start_notification_loop()
+        return response["username"], response["password"]
 
     def setup_ldap_account(
             self,
