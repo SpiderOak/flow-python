@@ -797,6 +797,18 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def enumerate_profiles(self, item, sid=0, timeout=None):
+        """Lists all the profiles for the specified item.
+        Returns array of 'Profile' dicts.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="EnumerateProfiles",
+            SessionID=sid,
+            Item=item,
+            timeout=timeout,
+        )
+
     def enumerate_org_members(self, oid, sid=0, timeout=None):
         """Lists all members for an org and their state."""
         sid = self._get_session_id(sid)
