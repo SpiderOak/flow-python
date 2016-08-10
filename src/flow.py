@@ -61,6 +61,7 @@ class Flow(object):
     CHANNEL_SESSION_KEY_NOTIFICATION = "channel-session-key"
     CHANNEL_SESSION_KEY_SHARE_NOTIFICATION = "channel-session-key-share"
     LDAP_BIND_REQUEST_NOTIFICATION = "ldap-bind-request"
+    NOTIFY_EVENT_NOTIFICATION = "notify-event"
 
     # Lock types
     UNLOCK = 1
@@ -120,6 +121,8 @@ class Flow(object):
         CHANNEL_SESSION_KEY_SHARE_NOTIFICATION)
     ldap_bind_request = _make_notification_decorator(
         LDAP_BIND_REQUEST_NOTIFICATION)
+    notify_event = _make_notification_decorator(
+        NOTIFY_EVENT_NOTIFICATION)
 
     class _Session(object):
         """Internal class to hold session data."""
@@ -331,7 +334,10 @@ class Flow(object):
                         "sending SIGKILL to process",
                         timeout_secs,
                     )
-                    self._flowappglue.kill()
+                    try:
+                        self._flowappglue.kill()
+                    except OSError:
+                        pass
                     break
 
         # Close all sessions
@@ -1467,7 +1473,6 @@ class Flow(object):
     def ldap_bind_response(self,
                            username,
                            secure_exchange_token,
-                           bind_result,
                            level2_secret,
                            sid=0,
                            timeout=None):
@@ -1475,8 +1480,7 @@ class Flow(object):
         Arguments:
         - secure_exchange_token: string, this is the secure_exchange_token
         string returned in the 'ldap-bind-request' notification.
-        - bind_result: bool, True if the LDAP bind was successful.
-        - level2_secret: string, if bind_result is True, then this is encrypted
+        - level2_secret: string, with L2 value that is encrypted
         and send to the client at the other end.
         """
         sid = self._get_session_id(sid)
@@ -1486,7 +1490,6 @@ class Flow(object):
             Username=username,
             ServerURI=self.server_uri,
             SecureExchangeToken=secure_exchange_token,
-            BindResult=bind_result,
             Level2Secret=level2_secret,
             timeout=timeout,
         )
@@ -1494,7 +1497,6 @@ class Flow(object):
     def link_ldap_account(self,
                           username,
                           secure_exchange_token,
-                          bind_result,
                           level2_secret,
                           sid=0,
                           timeout=None):
@@ -1502,7 +1504,6 @@ class Flow(object):
         Arguments:
         - secure_exchange_token: string, this is the secure_exchange_token
         string returned in the 'ldap-bind-request' notification.
-        - bind_result: bool, True if the LDAP bind was successful.
         - level2_secret: string
         Returns a string with the new flow generated password.
         """
@@ -1513,7 +1514,6 @@ class Flow(object):
             Username=username,
             ServerURI=self.server_uri,
             SecureExchangeToken=secure_exchange_token,
-            BindResult=bind_result,
             Level2Secret=level2_secret,
             timeout=timeout,
         )
