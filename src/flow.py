@@ -788,6 +788,17 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def payment_status(self, sid=0, timeout=None):
+        """Returns the current payment status for the teams and account
+        Returns a 'PaymentStatusResponse' dict.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="PaymentStatus",
+            SessionID=sid,
+            timeout=timeout,
+        )
+
     def enumerate_orgs(self, sid=0, timeout=None):
         """Lists all the orgs the caller is a member of.
         Returns array of 'Org' dicts.
