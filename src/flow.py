@@ -1214,6 +1214,17 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def get_org_types(self, sid=0, timeout=None):
+        """Returns the team types available.
+        Returns a list of 'OrgType' dicts.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="GetOrgTypes",
+            SessionID=sid,
+            timeout=timeout,
+        )
+
     def device_id(self, sid=0, timeout=None):
         """Returns the DeviceId of the current device."""
         sid = self._get_session_id(sid)
