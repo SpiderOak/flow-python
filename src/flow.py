@@ -121,6 +121,8 @@ class Flow(object):
         CHANNEL_SESSION_KEY_SHARE_NOTIFICATION)
     ldap_bind_request = _make_notification_decorator(
         LDAP_BIND_REQUEST_NOTIFICATION)
+    notify_event = _make_notification_decorator(
+        NOTIFY_EVENT_NOTIFICATION)
 
     class _Session(object):
         """Internal class to hold session data."""
