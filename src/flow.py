@@ -61,6 +61,7 @@ class Flow(object):
     CHANNEL_SESSION_KEY_NOTIFICATION = "channel-session-key"
     CHANNEL_SESSION_KEY_SHARE_NOTIFICATION = "channel-session-key-share"
     LDAP_BIND_REQUEST_NOTIFICATION = "ldap-bind-request"
+    NOTIFY_EVENT_NOTIFICATION = "notify-event"
 
     # Lock types
     UNLOCK = 1
