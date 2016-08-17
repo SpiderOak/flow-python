@@ -795,6 +795,17 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def payment_status(self, sid=0, timeout=None):
+        """Returns the current payment status for the teams and account
+        Returns a 'PaymentStatusResponse' dict.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="PaymentStatus",
+            SessionID=sid,
+            timeout=timeout,
+        )
+
     def enumerate_orgs(self, sid=0, timeout=None):
         """Lists all the orgs the caller is a member of.
         Returns array of 'Org' dicts.
@@ -1206,6 +1217,17 @@ class Flow(object):
         sid = self._get_session_id(sid)
         return self._run(
             method="GetDevices",
+            SessionID=sid,
+            timeout=timeout,
+        )
+
+    def get_org_types(self, sid=0, timeout=None):
+        """Returns the team types available.
+        Returns a list of 'OrgType' dicts.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="GetOrgTypes",
             SessionID=sid,
             timeout=timeout,
         )
