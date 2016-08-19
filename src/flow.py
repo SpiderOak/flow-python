@@ -347,7 +347,7 @@ class Flow(object):
         # Close all sessions
         sids = list(self.sessions.keys())
         for sid in sids:
-            self.close(sid)
+            self._close(sid)
 
     @staticmethod
     def gen_rand_req_id():
@@ -642,7 +642,8 @@ class Flow(object):
         This call also starts the notification loop for this session.
         If username is not provided, then it generates a random username, it
         also generates a random password for the account.
-        Returns both the auto-generated username and password.
+        Returns a dict with the auto-generated username and password,
+        and the LDAP OrgID.
         """
         if not phone_number:
             phone_number = self._gen_random_number(15)
@@ -667,7 +668,7 @@ class Flow(object):
             timeout=timeout,
         )
         self.sessions[sid].start_notification_loop()
-        return response["username"], response["password"]
+        return response
 
     def setup_ldap_account(
             self,
@@ -795,6 +796,17 @@ class Flow(object):
             SessionID=sid,
             OrgID=oid,
             Name=name,
+            timeout=timeout,
+        )
+
+    def payment_status(self, sid=0, timeout=None):
+        """Returns the current payment status for the teams and account
+        Returns a 'PaymentStatusResponse' dict.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="PaymentStatus",
+            SessionID=sid,
             timeout=timeout,
         )
 
@@ -1213,6 +1225,17 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def get_org_types(self, sid=0, timeout=None):
+        """Returns the team types available.
+        Returns a list of 'OrgType' dicts.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="GetOrgTypes",
+            SessionID=sid,
+            timeout=timeout,
+        )
+
     def device_id(self, sid=0, timeout=None):
         """Returns the DeviceId of the current device."""
         sid = self._get_session_id(sid)
@@ -1563,7 +1586,7 @@ class Flow(object):
         )
 
     def set_account_lock(self, username, lock_type, sid=0, timeout=None):
-        """"""
+        """Sets the lock type for the given account."""
         sid = self._get_session_id(sid)
         self._run(
             method="SetAccountLock",
@@ -1595,9 +1618,9 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def close(self, sid=0):
-        """Closes a session and cleanly finishes any long running operations.
-        It could be seen as a logout.
+    def _close(self, sid=0):
+        """Closes a session and cleanly finishes
+        any long running operations.
         """
         sid = self._get_session_id(sid)
         self.sessions[sid].close()
