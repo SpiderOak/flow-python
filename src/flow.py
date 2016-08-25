@@ -387,7 +387,7 @@ class Flow(object):
         try:
             req_timeout = timeout or self.api_timeout
             response = requests.post(
-                "http://localhost:%s/rpc" %
+                "http://127.0.0.1:%s/rpc" %
                 self._port,
                 headers={'Content-type': 'application/json'},
                 timeout=req_timeout,
