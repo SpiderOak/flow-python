@@ -289,6 +289,7 @@ class Flow(object):
         if empty, then it tries to determine the location.
         """
         self.server_uri = server_uri
+        self.api_timeout = None
         self._check_file_exists(flowappglue)
         self._check_file_exists(db_dir, True)
         with open(glue_out_filename, "w") as log_file:
@@ -358,6 +359,10 @@ class Flow(object):
         """
         return sid if sid else self._current_session
 
+    def set_api_timeout(self, timeout):
+        """Sets the default timeout (in seconds) for all API requests."""
+        self.api_timeout = timeout
+
     def _run(self, method, timeout=None, **params):
         """Performs the HTTP JSON POST against
         the flowappglue server on localhost.
@@ -380,11 +385,12 @@ class Flow(object):
             "request method=%s id=%s: %s",
             method, rand_debug_req_id, request_str)
         try:
+            req_timeout = timeout or self.api_timeout
             response = requests.post(
                 "http://localhost:%s/rpc" %
                 self._port,
                 headers={'Content-type': 'application/json'},
-                timeout=timeout,
+                timeout=req_timeout,
                 data=request_str,
             )
         except (requests.ConnectionError, requests.Timeout) as requests_err:
