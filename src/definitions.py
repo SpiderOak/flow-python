@@ -27,8 +27,9 @@ _DEFAULT_APP_WINDOWS_PATH = r"Semaphor\resources\app"
 # Default dirs and binaries
 _DEFAULT_ATTACHMENT_DIR = "downloads"
 _DEFAULT_SCHEMA_DIR = "schema"
-_DEFAULT_FLOWAPPGLUE_BINARY_DEV_NAME = "flowappglue"
-_DEFAULT_FLOWAPPGLUE_BINARY_PROD_NAME = "semaphor-backend"
+_EXE_EXT = ".exe" if sys.platform == "win32" else ""
+_DEFAULT_FLOWAPPGLUE_BINARY_DEV_NAME = "flowappglue%s" % _EXE_EXT
+_DEFAULT_FLOWAPPGLUE_BINARY_PROD_NAME = "semaphor-backend%s" % _EXE_EXT
 
 
 def _osx_app_path():
