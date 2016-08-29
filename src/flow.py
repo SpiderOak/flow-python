@@ -1352,7 +1352,7 @@ class Flow(object):
         self._run(
             method="ChangePassword",
             SessionID=sid,
-            Password=password,
+            NewPassword=password,
             timeout=timeout,
         )
 
@@ -1473,7 +1473,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def fetch_ldap_public_key(self, username, sid=0, timeout=None):
+    def fetch_ldap_public_key(self, username, fingerprint, sid=0, timeout=None):
         """Fetch the public key for the LDAP management
         account for the given username (assuming it's an email).
         """
@@ -1483,6 +1483,7 @@ class Flow(object):
             SessionID=sid,
             Username=username,
             ServerURI=self.server_uri,
+            Fingerprint=fingerprint,
             timeout=timeout,
         )
 
