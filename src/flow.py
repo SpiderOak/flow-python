@@ -1238,6 +1238,18 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def get_org_data(self, oid, sid=0, timeout=None):
+        """Returns extra data for the specified org.
+        Returns an 'OrgData' dict.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="GetOrgData",
+            SessionID=sid,
+            OrgID=oid,
+            timeout=timeout,
+        )
+
     def device_id(self, sid=0, timeout=None):
         """Returns the DeviceId of the current device."""
         sid = self._get_session_id(sid)
