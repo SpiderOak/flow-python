@@ -1242,6 +1242,18 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def get_org_data(self, oid, sid=0, timeout=None):
+        """Returns extra data for the specified org.
+        Returns an 'OrgData' dict.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="GetOrgData",
+            SessionID=sid,
+            OrgID=oid,
+            timeout=timeout,
+        )
+
     def device_id(self, sid=0, timeout=None):
         """Returns the DeviceId of the current device."""
         sid = self._get_session_id(sid)
@@ -1356,7 +1368,7 @@ class Flow(object):
         self._run(
             method="ChangePassword",
             SessionID=sid,
-            Password=password,
+            NewPassword=password,
             timeout=timeout,
         )
 
@@ -1491,7 +1503,7 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def fetch_ldap_public_key(self, username, sid=0, timeout=None):
+    def fetch_ldap_public_key(self, username, fingerprint, sid=0, timeout=None):
         """Fetch the public key for the LDAP management
         account for the given username (assuming it's an email).
         """
@@ -1501,6 +1513,7 @@ class Flow(object):
             SessionID=sid,
             Username=username,
             ServerURI=self.server_uri,
+            Fingerprint=fingerprint,
             timeout=timeout,
         )
 
