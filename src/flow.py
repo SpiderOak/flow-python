@@ -360,7 +360,9 @@ class Flow(object):
         return sid if sid else self._current_session
 
     def set_api_timeout(self, timeout):
-        """Sets the default timeout (in seconds) for all API requests."""
+        """Sets the default timeout (in seconds) for all API
+        requests (except WaitForNotification).
+        """
         self.api_timeout = timeout
 
     def _run(self, method, timeout=None, **params):
@@ -385,7 +387,8 @@ class Flow(object):
             "request method=%s id=%s: %s",
             method, rand_debug_req_id, request_str)
         try:
-            req_timeout = timeout or self.api_timeout
+            req_timeout = timeout or \
+                (self.api_timeout if method != "WaitForNotification" else None)
             response = requests.post(
                 "http://127.0.0.1:%s/rpc" %
                 self._port,
@@ -457,7 +460,7 @@ class Flow(object):
         """Registers a callback to be executed for
         a specific notification type.
         Arguments:
-        sid : int, SessionID
+        sid : int, SessionID.
         notification_name : string, type of the notification.
         callback : function object that receives a string as argument.
         Upon callback execution, the string argument of the callback
@@ -470,7 +473,7 @@ class Flow(object):
         """Unregisters a callback, this makes the Flow module
         to ignore notifications of this type.
         Arguments:
-        sid : int, SessionID
+        sid : int, SessionID.
         notification_name : string, type of the notification.
         """
         sid = self._get_session_id(sid)
@@ -480,10 +483,11 @@ class Flow(object):
         """Processes a single notification.
         Returns 'True' if a notification was processed, 'False'
         meaning no notification was available for processing.
-        This is to be used on a loop using the return value.
+        It will only process registered notifications
+        (via register_callback() or the decorator functionality).
         Arguments:
         timeout_secs : float, seconds to block on the notification queue.
-        sid : int, SessionI.
+        sid : int, SessionID.
         """
         sid = self._get_session_id(sid)
         return self.sessions[sid].consume_notification(timeout_secs)
@@ -493,7 +497,7 @@ class Flow(object):
         Returns 'None' if there's no error on the queue.
         Arguments:
         timeout_secs : float, seconds to block on the notification queue.
-        sid : int, SessionId.
+        sid : int, SessionID.
         """
         error = None
         sid = self._get_session_id(sid)
