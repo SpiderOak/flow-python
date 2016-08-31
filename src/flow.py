@@ -64,9 +64,9 @@ class Flow(object):
     NOTIFY_EVENT_NOTIFICATION = "notify-event"
 
     # Lock types
-    UNLOCK = 1
-    FULL_LOCK = 2
-    LDAP_LOCK = 3
+    UNLOCK = 0
+    FULL_LOCK = 1
+    LDAP_LOCK = 2
 
     def _make_notification_decorator(name):
         """Generates decorator functions for all notifications.
