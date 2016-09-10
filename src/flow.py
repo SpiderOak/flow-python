@@ -772,6 +772,15 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def build_number(self, sid=0, timeout=None):
+        """Returns the build number for the glue binary."""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="BuildNumber",
+            SessionID=sid,
+            timeout=timeout,
+        )
+
     def keyring_fingerprint(self, sid=0, timeout=None):
         """Returns the fingerprint of the last keyring on this account."""
         sid = self._get_session_id(sid)
