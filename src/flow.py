@@ -277,7 +277,8 @@ class Flow(object):
             schema_dir=definitions.get_default_schema_path(),
             attachment_dir=definitions.get_default_attachment_path(),
             use_tls=definitions.DEFAULT_USE_TLS,
-            glue_out_filename=definitions.get_default_glue_out_filename()):
+            glue_out_filename=definitions.get_default_glue_out_filename(),
+            decrement=None):
         """Initializes the Flow object. It starts and configures
         flowappglue local server as a subprocess.
         It also starts a new session so that you can start using
@@ -292,9 +293,12 @@ class Flow(object):
         self.api_timeout = None
         self._check_file_exists(flowappglue)
         self._check_file_exists(db_dir, True)
+        glue = [flowappglue, "0"]
+        if decrement is not None:
+            glue = [flowappglue, "--decrement-time", decrement, "0"]
         with open(glue_out_filename, "w") as log_file:
             self._flowappglue = subprocess.Popen(
-                [flowappglue, "0"],
+                glue,
                 stdout=subprocess.PIPE,
                 stderr=log_file,
             )
