@@ -64,9 +64,9 @@ class Flow(object):
     NOTIFY_EVENT_NOTIFICATION = "notify-event"
 
     # Lock types
-    UNLOCK = 1
-    FULL_LOCK = 2
-    LDAP_LOCK = 3
+    UNLOCK = 0
+    FULL_LOCK = 1
+    LDAP_LOCK = 2
 
     def _make_notification_decorator(name):
         """Generates decorator functions for all notifications.
@@ -772,6 +772,15 @@ class Flow(object):
         sid = self._get_session_id(sid)
         return self._run(
             method="AccountId",
+            SessionID=sid,
+            timeout=timeout,
+        )
+
+    def build_number(self, sid=0, timeout=None):
+        """Returns the build number for the glue binary."""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="BuildNumber",
             SessionID=sid,
             timeout=timeout,
         )
