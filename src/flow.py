@@ -278,7 +278,7 @@ class Flow(object):
             attachment_dir=definitions.get_default_attachment_path(),
             use_tls=definitions.DEFAULT_USE_TLS,
             glue_out_filename=definitions.get_default_glue_out_filename(),
-            decrement=None):
+            decrement_file=None):
         """Initializes the Flow object. It starts and configures
         flowappglue local server as a subprocess.
         It also starts a new session so that you can start using
@@ -294,8 +294,8 @@ class Flow(object):
         self._check_file_exists(flowappglue)
         self._check_file_exists(db_dir, True)
         glue = [flowappglue, "0"]
-        if decrement is not None:
-            glue = [flowappglue, "--decrement-time", decrement, "0"]
+        if decrement_file is not None:
+            glue = [flowappglue, "--decrement-file", decrement_file, "0"]
         with open(glue_out_filename, "w") as log_file:
             self._flowappglue = subprocess.Popen(
                 glue,
@@ -1433,6 +1433,20 @@ class Flow(object):
             OrgID=oid,
             ChannelID=cid,
             MessageID=mid,
+            timeout=timeout,
+        )
+
+    def set_channel_retention_policy(self, oid, cid, cat, days, msgs, sid=0, timeout=None):
+        """Sets a new message retention policy for an account in a channel."""
+        sid = self._get_session_id(sid)
+        result = self._run(
+            method="SetChannelRetentionPolicy",
+            SessionID=sid,
+            OrgID=oid,
+            ChannelID=cid,
+            MessageCategory=cat,
+			MaxDays=days,
+			MaxMessages=msgs,
             timeout=timeout,
         )
 
