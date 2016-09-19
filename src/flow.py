@@ -369,6 +369,43 @@ class Flow(object):
         """
         self.api_timeout = timeout
 
+    def _log_request(self, request_data):
+        """If in debug mode, logs the request.
+        Arguments:
+        request_data: dict, data to send to the backend.
+        """
+        rand_debug_req_id = None
+        if LOG.getEffectiveLevel() == logging.DEBUG:
+            rand_debug_req_id = self.gen_rand_req_id()
+            LOG.debug(
+                "request: id=%s, %s",
+                rand_debug_req_id,
+                request_data,
+            )
+        return rand_debug_req_id
+
+    def _log_response(self,
+                      method,
+                      req_id,
+                      http_response,
+                      response_data):
+        """If in debug mode, logs the response.
+        Arguments:
+        method: string, API method name.
+        req_id: string, request id.
+        http_response: requests.Response object.
+        response_data: dict, parsed dict response.
+        """
+        if LOG.getEffectiveLevel() == logging.DEBUG:
+            LOG.debug(
+                "response: id=%s, %s, HTTP=%s, lat=%.2fs, %s",
+                req_id,
+                method,
+                http_response.status_code,
+                http_response.elapsed.total_seconds(),
+                response_data,
+            )
+
     def _run(self, method, timeout=None, **params):
         """Performs the HTTP JSON POST against
         the flowappglue server on localhost.
@@ -378,25 +415,20 @@ class Flow(object):
         Returns a dict with the response received from the flowappglue,
         it returns the 'result' part of the response.
         """
-        request_str = json.dumps(
-            dict(
-                method=method,
-                params=[params],
-                token=self._token,
-            ),
-            indent=2,
+        request_data = dict(
+            method=method,
+            params=[params],
+            token=self._token,
         )
-        rand_debug_req_id = self.gen_rand_req_id()
-        LOG.debug(
-            "request method=%s id=%s: %s",
-            method, rand_debug_req_id, request_str)
+        rand_debug_req_id = self._log_request(request_data)
         try:
+            request_str = json.dumps(request_data)
             req_timeout = timeout or \
                 (self.api_timeout if method != "WaitForNotification" else None)
             response = requests.post(
                 "http://127.0.0.1:%s/rpc" %
                 self._port,
-                headers={'Content-type': 'application/json'},
+                headers={"Content-type": "application/json"},
                 timeout=req_timeout,
                 data=request_str,
             )
@@ -406,13 +438,16 @@ class Flow(object):
             else:
                 raise Flow.FlowTimeoutError(requests_err)
 
-        response_data = json.loads(response.text, encoding='utf-8')
-        LOG.debug(
-            "response method=%s id=%s: HTTP %s, lat=%.2fs: %s",
-            method, rand_debug_req_id, response.status_code,
-            response.elapsed.total_seconds(), response.text)
+        response_data = json.loads(response.text, encoding="utf-8")
+
+        self._log_response(method, rand_debug_req_id, response, response_data)
+
         if "error" in response_data.keys() and len(response_data["error"]) > 0:
             raise Flow.FlowError(response_data["error"])
+        # These happen on certain scenarios on flowappglue,
+        # e.g. if executing an API when no local account has started.
+        if "Error" in response_data.keys() and len(response_data["Error"]) > 0:
+            raise Flow.FlowError(response_data["Error"])
         if "result" in response_data.keys():
             return response_data["result"]
         else:
@@ -1436,17 +1471,18 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def set_channel_retention_policy(self, oid, cid, cat, days, msgs, sid=0, timeout=None):
+    def set_channel_retention_policy(
+            self, oid, cid, cat, days, msgs, sid=0, timeout=None):
         """Sets a new message retention policy for an account in a channel."""
         sid = self._get_session_id(sid)
-        result = self._run(
+        self._run(
             method="SetChannelRetentionPolicy",
             SessionID=sid,
             OrgID=oid,
             ChannelID=cid,
             MessageCategory=cat,
-			MaxDays=days,
-			MaxMessages=msgs,
+            MaxDays=days,
+            MaxMessages=msgs,
             timeout=timeout,
         )
 
@@ -1516,7 +1552,8 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def fetch_ldap_public_key(self, username, fingerprint, sid=0, timeout=None):
+    def fetch_ldap_public_key(
+            self, username, fingerprint, sid=0, timeout=None):
         """Fetch the public key for the LDAP management
         account for the given username (assuming it's an email).
         """
