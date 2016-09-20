@@ -1023,7 +1023,7 @@ class Flow(object):
     def mark_messages_deleted(self, oid, cid, cat, msgs, sid=0, timeout=None):
         """Marks messages as deleted."""
         sid = self._get_session_id(sid)
-        return self._run(
+        self._run(
             method="MarkMessagesDeleted",
             SessionID=sid,
             OrgID=oid,
