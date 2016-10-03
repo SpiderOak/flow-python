@@ -5,6 +5,7 @@ All Flow API responses are represented with Python dicts.
 
 import sys
 import subprocess
+import tempfile
 import platform as platform_module
 import json
 import threading
@@ -225,7 +226,11 @@ class Flow(object):
             """Loops calling WaitForNotification on this session."""
             while self.listen_notifications.is_set():
                 try:
-                    changes = self.flow.wait_for_notification(sid=self.sid)
+                    # we need a timeout here because otherwise we will not
+                    # detect that listen_notifications.is_set has been changed
+                    # until we receive another notification, and therefore may
+                    # not shut down promptly when needed.
+                    changes = self.flow.wait_for_notification(sid=self.sid, timeout=15)
                 except Exception as flow_err:
                     # Check whether flowappglue finished execution
                     if self.flowappglue.poll() is not None:
@@ -318,17 +323,27 @@ class Flow(object):
         if decrement_file is not None:
             glue = [flowappglue, "--decrement-file", decrement_file, "0"]
         self.glue_log_file = open(glue_out_filename, "w")
+
+        # use a tempfile instead of a pipe for stdout, because floappglue may
+        # create enough output that it fills up the PIPE buffer and deadlocks.
+        stdout = tempfile.TemporaryFile()
         self._flowappglue = subprocess.Popen(
             glue,
-            stdout=subprocess.PIPE,
+            stdout=stdout,
             stderr=self.glue_log_file,
         )
 
-        _line = self._flowappglue.stdout.readline()
-        try:
-            token_port_line = json.loads(_line)
-        except TypeError:
-            token_port_line = json.loads(_line.decode())
+        while True:
+            data = stdout.read()
+            if data and "\n" in data:
+                # the subprocess will still keep the file open, but we want
+                # the file to be deleted when the subprocess exits, so we
+                # should not keep a copy of it.
+                stdout.close() 
+                token_port_line = json.loads(data)
+                break
+            stdout.seek(0)
+            time.sleep(0.1)
 
         self._token = token_port_line["token"]
         self._port = token_port_line["port"]
@@ -377,8 +392,8 @@ class Flow(object):
                     )
                     try:
                         self._flowappglue.kill()
-                    except OSError:
-                        pass
+                    except OSError, err:
+                        LOG.warn("OSError killing process: %s", err)
                     break
 
         # Close all sessions
