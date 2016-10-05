@@ -8,20 +8,21 @@ import subprocess
 import platform as platform_module
 import json
 import threading
-import os
-import string
-import random
-import logging
-import time
 
 try:
     import Queue
 except ImportError:
     import queue as Queue
 
+import os
+import string
+import random
+import logging
+import time
+
 import requests
 
-import definitions
+from . import definitions
 
 LOG = logging.getLogger("flow")
 LOG.addHandler(logging.NullHandler())
