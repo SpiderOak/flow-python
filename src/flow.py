@@ -8,16 +8,20 @@ import subprocess
 import platform as platform_module
 import json
 import threading
-import Queue
 import os
 import string
 import random
 import logging
 import time
 
+try:
+    import Queue
+except ImportError:
+    import queue as Queue
+
 import requests
 
-from . import definitions
+import definitions
 
 LOG = logging.getLogger("flow")
 LOG.addHandler(logging.NullHandler())
@@ -303,7 +307,13 @@ class Flow(object):
             stdout=subprocess.PIPE,
             stderr=self.glue_log_file,
         )
-        token_port_line = json.loads(self._flowappglue.stdout.readline())
+
+        _line = self._flowappglue.stdout.readline()
+        try:
+            token_port_line = json.loads(_line)
+        except TypeError:
+            token_port_line = json.loads(_line.decode())
+
         self._token = token_port_line["token"]
         self._port = token_port_line["port"]
         self.sessions = {}  # SessionID -> _Session
