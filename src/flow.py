@@ -94,7 +94,6 @@ class Flow(object):
     message = _make_notification_decorator(MESSAGE_NOTIFICATION)
     org = _make_notification_decorator(ORG_NOTIFICATION)
     channel = _make_notification_decorator(CHANNEL_NOTIFICATION)
-    message = _make_notification_decorator(MESSAGE_NOTIFICATION)
     hwm = _make_notification_decorator(HWM_NOTIFICATION)
     channel_member_event = _make_notification_decorator(
         CHANNEL_MEMBER_NOTIFICATION)
