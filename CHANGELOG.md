@@ -3,7 +3,7 @@
 ## 0.3
 
 - Config directory name is updated from `semaphor` to `flow-python`. This change is needed to avoid collision with Semaphor config directory. The full path of the config directory depends on the platform:
-    - Windows: C:\Windows\System32\config\systemprofile\AppData\Local\semaphor
+    - Windows: ~\AppData\Local\semaphor
     - Linux: ~/.config/semaphor
     - OSX: ~/Library/Application Support/semaphor
 
