@@ -8,7 +8,7 @@ flow-python is a module to interact with the Flow stack using python.
 ```
 $ git clone https://github.com/SpiderOak/flow-python.git
 $ cd flow-python
-$ sudo python setup.py install
+$ python setup.py install
 ```
 ## Basic Usage
 
@@ -48,15 +48,19 @@ flow.process_notifications()
 - Tested support on Linux, Windows and MacOS.
 - If you intend to use one of the examples above, 'your-flow-username' should already be logged-in in your device.
 - See [samples](samples/) directory for examples on how to use the module.
-- An application should use a single instance of `flow.Flow`.
+- An application should use a single instance of `flow.Flow` per account.
 - Use `logging.getLogger("flow")` to configure the log level for the module.
-- By default, local databases and `semaphor-backend` output are located under `~/.config/semaphor`, you can override this on `Flow` init (`db_dir`).
+- By default, local databases and `semaphor-backend` output are located under `~/.config/flow-python`, you can override this on `Flow` init (`db_dir`). The config directory prior to 0.3 was `~/.config/semaphor`, see [here](CHANGELOG.md#03).
 - `Flow` init starts the `semaphor-backend` as a subprocess.
 - To start using `Flow` with an account you must use only one of these three API: (the three methods start the notification loop that listens from incoming events from the server)
   - `Flow.start_up  # This starts an already logged-in account`
   - `Flow.create_account  # This creates a new account`
   - `Flow.create_device  # This creates a new device for an existing account`
 - `Flow` methods raise `Flow.FlowError` if something went wrong. 
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md)
 
 ## TODO
 

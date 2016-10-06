@@ -13,11 +13,13 @@ DEFAULT_PORT = "443"
 DEFAULT_USE_TLS = "true"
 DEFAULT_URI = "flow.spideroak.com"
 
+_CONFIG_DIR_NAME = "flow-python"
+
 # OS specifics defaults
 _CONFIG_OS_PATH_MAP = {
-    "darwin": "Library/Application Support/semaphor",
-    "linux2": ".config/semaphor",
-    "win32": r"AppData\Local\semaphor",
+    "darwin": "Library/Application Support",
+    "linux2": ".config",
+    "win32": r"AppData\Local",
 }
 
 # Needed for Python 3.5
@@ -67,8 +69,11 @@ def _get_home_directory():
 
 def _get_config_path():
     """Returns the default semaphor config path."""
-    return os.path.join(_get_home_directory(),
-                        _CONFIG_OS_PATH_MAP[sys.platform])
+    return os.path.join(
+        _get_home_directory(),
+        _CONFIG_OS_PATH_MAP[sys.platform],
+        _CONFIG_DIR_NAME,
+    )
 
 
 _APP_OS_PATH_MAP = {
@@ -84,7 +89,7 @@ def get_default_db_path():
     """Returns the default db path depending on the platform,
     which in all platforms is the config path.
     E.g. on OSX it would be:
-    $HOME/Library/Application Support/semaphor.
+    $HOME/Library/Application Support/flow-python.
     """
     return _get_config_path()
 
@@ -100,7 +105,7 @@ def get_default_schema_path():
 def get_default_attachment_path():
     """Returns the default attachment directory depending on the platform.
     E.g. on OSX it would be:
-    $HOME/Library/Application Support/semaphor/downloads.
+    $HOME/Library/Application Support/flow-python/downloads.
     """
     return os.path.join(_get_config_path(), _DEFAULT_ATTACHMENT_DIR)
 
