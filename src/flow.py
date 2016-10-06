@@ -8,7 +8,12 @@ import subprocess
 import platform as platform_module
 import json
 import threading
-import Queue
+
+try:
+    import Queue
+except ImportError:
+    import queue as Queue
+
 import os
 import string
 import random
@@ -89,7 +94,6 @@ class Flow(object):
     message = _make_notification_decorator(MESSAGE_NOTIFICATION)
     org = _make_notification_decorator(ORG_NOTIFICATION)
     channel = _make_notification_decorator(CHANNEL_NOTIFICATION)
-    message = _make_notification_decorator(MESSAGE_NOTIFICATION)
     hwm = _make_notification_decorator(HWM_NOTIFICATION)
     channel_member_event = _make_notification_decorator(
         CHANNEL_MEMBER_NOTIFICATION)
@@ -303,7 +307,13 @@ class Flow(object):
             stdout=subprocess.PIPE,
             stderr=self.glue_log_file,
         )
-        token_port_line = json.loads(self._flowappglue.stdout.readline())
+
+        _line = self._flowappglue.stdout.readline()
+        try:
+            token_port_line = json.loads(_line)
+        except TypeError:
+            token_port_line = json.loads(_line.decode())
+
         self._token = token_port_line["token"]
         self._port = token_port_line["port"]
         self.sessions = {}  # SessionID -> _Session

@@ -19,6 +19,10 @@ _CONFIG_OS_PATH_MAP = {
     "linux2": ".config/semaphor",
     "win32": r"AppData\Local\semaphor",
 }
+
+# Needed for Python 3.5
+_CONFIG_OS_PATH_MAP['linux'] = _CONFIG_OS_PATH_MAP['linux2']
+
 _DEFAULT_APP_OSX_PATH = "/Applications/Semaphor.app/Contents/Resources/app"
 _DEFAULT_APP_LINUX_RPM_PATH = "/opt/Semaphor-linux-x64/resources/app"
 _DEFAULT_APP_LINUX_DEB_PATH = "/usr/share/semaphor/resources/app"
@@ -73,6 +77,8 @@ _APP_OS_PATH_MAP = {
     "win32": _windows_app_path,
 }
 
+# Needed for Python3.5
+_APP_OS_PATH_MAP['linux'] = _APP_OS_PATH_MAP['linux2']
 
 def get_default_db_path():
     """Returns the default db path depending on the platform,
