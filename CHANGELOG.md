@@ -9,7 +9,7 @@
 
   If you have a bot running with version <0.3, then you should do one of these before updating flow-python:
     - If you are using flow-python along with Semaphor, then you have to update your bot code to use the existing `semaphor` directory:
-      ```
+      ```python
       # e.g. on Linux
       import os
       from flow import Flow
