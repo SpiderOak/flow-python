@@ -85,6 +85,7 @@ _APP_OS_PATH_MAP = {
 # Needed for Python3.5
 _APP_OS_PATH_MAP['linux'] = _APP_OS_PATH_MAP['linux2']
 
+
 def get_default_db_path():
     """Returns the default db path depending on the platform,
     which in all platforms is the config path.

@@ -1200,6 +1200,18 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def get_user_profile(self, account_id, item="profile",
+                         sid=0, timeout=None):
+        """Returns a string with the value of the given profile item."""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="GetUserProfile",
+            SessionID=sid,
+            AccountID=account_id,
+            Item=item,
+            timeout=timeout,
+        )
+
     def enumerate_local_accounts(self, timeout=None):
         """Lists all the accounts configured locally (not the peers).
         Returns an array of 'AccountIdentifier' dicts.
