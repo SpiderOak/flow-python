@@ -46,6 +46,7 @@ flow.process_notifications()
 ## Comments
 
 - Tested support on Linux, Windows and MacOS.
+- Supports Python2.7 and Python3.3-3.5
 - If you intend to use one of the examples above, 'your-flow-username' should already be logged-in in your device.
 - See [samples](samples/) directory for examples on how to use the module.
 - An application should use a single instance of `flow.Flow` per account.
@@ -69,6 +70,5 @@ See [CHANGELOG.md](CHANGELOG.md)
 - Document Flow dict objects that are returned on many of the methods. Or find a better way to return these (objects vs dicts?).
 - Unit Testing the flow module.
 - It has support for multiple sessions but this hasn't been tested yet.
-- Remove unnecessary args in Flow's `__init__()`.
 - Auto-generate API methods from the `flowapp` API.
 - See other TODOs in source code.
