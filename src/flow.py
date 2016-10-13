@@ -320,7 +320,7 @@ class Flow(object):
         # Configure flowappglue and create the session
         self._config(host, port, db_dir, schema_dir, attachment_dir, use_tls)
         self._current_session = self.new_session()
-        self._loop_process_notifications = False
+        self._loop_process_notifications = threading.Event()
         # If username available then start the session
         if username:
             self.start_up(username)
@@ -341,6 +341,9 @@ class Flow(object):
         # TODO: call 'Close' flowapp API here as soon as it is supported
         self.glue_log_file.close()
         start = time.time()
+
+        # Stop 'process_notifications()' loop
+        self._loop_process_notifications.clear()
 
         # Terminate the flowappglue process
         if self._flowappglue and self._flowappglue.poll() is None:
@@ -567,9 +570,12 @@ class Flow(object):
     def set_processing_notifications(self, value=True):
         """Sets whether to continue processing the notifications.
         Use w/ value=False if you don't want to process more notifications.
-        It will make the app quit the 'process_notification()' loop.
+        It will make the app quit the 'process_notifications()' loop.
         """
-        self._loop_process_notifications = value
+        if value:
+            self._loop_process_notifications.set()
+        else:
+            self._loop_process_notifications.clear()
 
     def process_notifications(self, timeout_secs=0.05, sid=0):
         """Loop to processes notifications.
@@ -580,9 +586,15 @@ class Flow(object):
         sid : int, SessionID
         """
         sid = self._get_session_id(sid)
-        self._loop_process_notifications = True
-        while self._loop_process_notifications:
-            self.sessions[sid].consume_notification(timeout_secs)
+        self._loop_process_notifications.set()
+        LOG.debug("process_notifications start")
+        while self._loop_process_notifications.is_set():
+            try:
+                self.sessions[sid].consume_notification(timeout_secs)
+            except Exception as exception:
+                LOG.debug("consume_notification failed: %s", exception)
+                break
+        LOG.debug("process_notifications done")
 
     def new_session(self, timeout=None):
         """Creates a new session.
