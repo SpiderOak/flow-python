@@ -549,7 +549,12 @@ class Flow(object):
         sid : int, SessionID.
         """
         sid = self._get_session_id(sid)
-        return self.sessions[sid].consume_notification(timeout_secs)
+        try:
+            session = self.sessions[sid]
+        except KeyError as key_error:
+            LOG.debug("no session %s", key_error)
+            return False
+        return session.consume_notification(timeout_secs)
 
     def get_notification_error(self, timeout_secs=0.05, sid=0):
         """Returns a notification error from the error queue.
@@ -590,10 +595,15 @@ class Flow(object):
         LOG.debug("process_notifications start")
         while self._loop_process_notifications.is_set():
             try:
-                self.sessions[sid].consume_notification(timeout_secs)
-            except Exception as exception:
-                LOG.debug("consume_notification failed: %s", exception)
+                session = self.sessions[sid]
+            except KeyError as key_error:
+                LOG.debug("no session %s", key_error)
                 break
+            try:
+                session.consume_notification(timeout_secs)
+            except:
+                # Log error and keep looping
+                LOG.exception("consume_notification failed")
         LOG.debug("process_notifications done")
 
     def new_session(self, timeout=None):
