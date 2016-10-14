@@ -1042,22 +1042,33 @@ class Flow(object):
         )
 
     def send_message(self, oid, cid, msg, attachments=None,
-                     other_data=None, sid=0, timeout=None):
+                     other_data=None, push_notify_account_ids=None,
+                     sid=0, timeout=None):
         """Sends a message to a channel this user is a member of.
         Returns a string that represents the 'MessageID'
         that has just been sent.
         """
         sid = self._get_session_id(sid)
-        return self._run(
-            method="SendMessage",
-            SessionID=sid,
-            OrgID=oid,
-            ChannelID=cid,
-            Text=msg,
-            OtherData=other_data,
-            Attachments=attachments,
-            timeout=timeout,
-        )
+        run_kwargs = {
+            "method": "SendMessage",
+            "SessionID": sid,
+            "OrgID": oid,
+            "ChannelID": cid,
+            "Text": msg,
+            "OtherData": other_data,
+            "Attachments": attachments,
+            "timeout": timeout,
+        }
+
+        if push_notify_account_ids:
+            run_kwargs.update(
+                {
+                    "method": "SendMessageWithNotification",
+                    "PushNotifyAccountIDs": push_notify_account_ids,
+                }
+            )
+
+        return self._run(**run_kwargs)
 
     def wait_for_notification(self, sid=0, timeout=None):
         """Returns the oldest unseen notification
