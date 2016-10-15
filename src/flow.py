@@ -999,6 +999,16 @@ class Flow(object):
         file_basename = os.path.basename(file_path)
         return {"id": aid, "filename": file_basename}
 
+    def cancel_attachment_upload(self, attachid, sid=0):
+        """Cancel an active upload, if possible
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="CancelAttachmentUpload",
+            SessionID=sid,
+            AttachmentID=attachid,
+        )
+
     def start_attachment_download(
             self, aid, oid, cid, mid, sid=0, timeout=None):
         """Requests download of an attachment.
@@ -1013,6 +1023,16 @@ class Flow(object):
             ChannelID=cid,
             MessageID=mid,
             timeout=timeout,
+        )
+
+    def cancel_attachment_download(self, attachid, sid=0):
+        """Cancel an active download, if possible
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="CancelAttachmentDownload",
+            SessionID=sid,
+            AttachmentID=attachid,
         )
 
     def update_attachment_path(self, aid, new_path, sid=0, timeout=None):
