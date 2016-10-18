@@ -5,6 +5,9 @@
 flow-python is a module to interact with the Flow stack using python.
 
 ## Install
+
+1. Download and install Semaphor: https://spideroak.com/opendownload.
+2. Clone and install the flow-python repo:
 ```
 $ git clone https://github.com/SpiderOak/flow-python.git
 $ cd flow-python
@@ -18,7 +21,7 @@ Here's a simple script to list a user's Organizations/Teams:
 from flow import Flow
 
 # Create flow intance and start using the API
-flow = Flow('your-flow-username')
+flow = Flow('flow-username')
 
 # Print user's organizations
 print(flow.enumerate_orgs())
@@ -29,7 +32,7 @@ Here's a script that listens for messages and prints them to stdout:
 #!/usr/bin/env python
 from flow import Flow
 
-flow = Flow('your-flow-username')
+flow = Flow('flow-username')
 
 # Here we register our callback to be executed when we receive a message
 @flow.message
