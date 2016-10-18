@@ -601,7 +601,7 @@ class Flow(object):
                 break
             try:
                 session.consume_notification(timeout_secs)
-            except:
+            except Exception:
                 # Log error and keep looping
                 LOG.exception("consume_notification failed")
         LOG.debug("process_notifications done")
