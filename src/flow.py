@@ -1728,6 +1728,15 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def ping(self, sid=0, timeout=None):
+        """contact the server and report the result"""
+        sid = self._get_session_id(sid)
+        self._run(
+            method="Ping",
+            SessionID=sid,
+            timeout=timeout,
+        )
+
     def pause(self, sid=0, timeout=None):
         """Disconnect from the notification service.
         Any existing already-in-progress
