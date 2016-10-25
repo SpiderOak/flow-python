@@ -59,10 +59,12 @@ class Flow(object):
     UPLOAD_PROGRESS_NOTIFICATION = "upload-progress-event"
     UPLOAD_COMPLETE_NOTIFICATION = "upload-complete-event"
     UPLOAD_ERROR_NOTIFICATION = "upload-error-event"
+    UPLOAD_CANCEL_NOTIFICATION = "upload-cancel-event"
     DOWNLOAD_START_NOTIFICATION = "download-start-event"
     DOWNLOAD_PROGRESS_NOTIFICATION = "download-progress-event"
     DOWNLOAD_COMPLETE_NOTIFICATION = "download-complete-event"
     DOWNLOAD_ERROR_NOTIFICATION = "download-error-event"
+    DOWNLOAD_CANCEL_NOTIFICATION = "download-cancel-event"
     CHANNEL_SESSION_KEY_NOTIFICATION = "channel-session-key"
     CHANNEL_SESSION_KEY_SHARE_NOTIFICATION = "channel-session-key-share"
     LDAP_BIND_REQUEST_NOTIFICATION = "ldap-bind-request"
@@ -111,6 +113,8 @@ class Flow(object):
         UPLOAD_COMPLETE_NOTIFICATION)
     upload_error_event = _make_notification_decorator(
         UPLOAD_ERROR_NOTIFICATION)
+    upload_cancel_event = _make_notification_decorator(
+        UPLOAD_CANCEL_NOTIFICATION)
     download_start_event = _make_notification_decorator(
         DOWNLOAD_START_NOTIFICATION)
     download_progress_event = _make_notification_decorator(
@@ -119,6 +123,8 @@ class Flow(object):
         DOWNLOAD_COMPLETE_NOTIFICATION)
     download_error_event = _make_notification_decorator(
         DOWNLOAD_ERROR_NOTIFICATION)
+    download_cancel_event = _make_notification_decorator(
+        DOWNLOAD_CANCEL_NOTIFICATION)
     channel_session_key = _make_notification_decorator(
         CHANNEL_SESSION_KEY_NOTIFICATION)
     channel_session_key_share = _make_notification_decorator(
@@ -999,6 +1005,16 @@ class Flow(object):
         file_basename = os.path.basename(file_path)
         return {"id": aid, "filename": file_basename}
 
+    def cancel_attachment_upload(self, attachid, sid=0):
+        """Cancel an active upload, if possible
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="CancelAttachmentUpload",
+            SessionID=sid,
+            AttachmentID=attachid,
+        )
+
     def start_attachment_download(
             self, aid, oid, cid, mid, sid=0, timeout=None):
         """Requests download of an attachment.
@@ -1013,6 +1029,16 @@ class Flow(object):
             ChannelID=cid,
             MessageID=mid,
             timeout=timeout,
+        )
+
+    def cancel_attachment_download(self, attachid, sid=0):
+        """Cancel an active download, if possible
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="CancelAttachmentDownload",
+            SessionID=sid,
+            AttachmentID=attachid,
         )
 
     def update_attachment_path(self, aid, new_path, sid=0, timeout=None):
