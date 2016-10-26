@@ -1754,6 +1754,27 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def set_org_preferences(self, oid, preferences, clear_preferences=None, sid=0, timeout=None):
+        """Sets the preferences for org with id oid and clears the preference
+        items specified in clear_preferences"""
+        sid = self._get_session_id(sid)
+        self._run(
+            method="SetOrgPreferences",
+            SessionID=sid,
+            OrgID=oid,
+            Preferences=preferences,
+            ClearPreferences=clear_preferences,
+        )
+
+    def org_preferences(self, oid, sid=0, timeout=None):
+        """Returns a dict for the preferences for the provided oid"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="OrgPreferences",
+            SessionID=sid,
+            OrgID=oid,
+        )
+
     def pause(self, sid=0, timeout=None):
         """Disconnect from the notification service.
         Any existing already-in-progress
