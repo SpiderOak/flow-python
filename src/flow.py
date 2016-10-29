@@ -150,6 +150,7 @@ class Flow(object):
             self.callbacks = {}  # Notification Name -> Function Object
             self.notification_queue = Queue.Queue()
             self.error_queue = Queue.Queue()
+            self.just_queue_error = None
             self.listen_notifications = threading.Event()
             self.notification_thread = threading.Thread(
                 target=self._notification_loop,
@@ -194,7 +195,10 @@ class Flow(object):
                     "Error queue is full: ignoring error '%s'",
                     ignored_error,
                 )
+            if self.just_queue_error == error:
+                return
             self.error_queue.put(error)
+            self.just_queue_error = error
 
         def _queue_changes(self, changes):
             """Queues the changes of registered change types.
