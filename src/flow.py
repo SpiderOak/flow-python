@@ -251,6 +251,9 @@ class Flow(object):
             after 'timeout_secs'.
             Arguments:
             timeouts_secs : float, seconds to block waiting for notifications.
+            Returns True if a notification was processed successfully. And
+            False if there was no notification on the queue or it failed to be
+            processed.
             """
             notification_consumed = False
             try:
@@ -264,13 +267,16 @@ class Flow(object):
                             "Notification of type '%s' not supported.",
                             notification["type"],
                         )
-                    self.callbacks[notification["type"]](
-                        notification["type"], notification["data"])
-                except Exception as exception:
-                    LOG.debug("Error: %s", str(exception))
+                    callback = self.callbacks[notification["type"]]
+                    callback(
+                        notification["type"],
+                        notification["data"],
+                    )
+                    notification_consumed = True
+                except Exception:
+                    LOG.exception("%s failed", callback.__name__)
                 finally:
                     self.callback_lock.release()
-                notification_consumed = True
             except Queue.Empty:
                 notification_consumed = False
             return notification_consumed
@@ -1759,15 +1765,16 @@ class Flow(object):
         )
 
     def ping(self, sid=0, timeout=None):
-        """contact the server and report the result"""
+        """Contact the server and report the result."""
         sid = self._get_session_id(sid)
-        self._run(
+        return self._run(
             method="Ping",
             SessionID=sid,
             timeout=timeout,
         )
 
-    def set_org_preferences(self, oid, preferences, clear_preferences=None, sid=0, timeout=None):
+    def set_org_preferences(self, oid, preferences,
+                            clear_preferences=None, sid=0, timeout=None):
         """Sets the preferences for org with id oid and clears the preference
         items specified in clear_preferences"""
         sid = self._get_session_id(sid)
@@ -1777,6 +1784,7 @@ class Flow(object):
             OrgID=oid,
             Preferences=preferences,
             ClearPreferences=clear_preferences,
+            timeout=timeout,
         )
 
     def org_preferences(self, oid, sid=0, timeout=None):
@@ -1786,6 +1794,7 @@ class Flow(object):
             method="OrgPreferences",
             SessionID=sid,
             OrgID=oid,
+            timeout=timeout,
         )
 
     def pause(self, sid=0, timeout=None):
