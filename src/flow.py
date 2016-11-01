@@ -857,11 +857,32 @@ class Flow(object):
         self.sessions[sid].start_notification_loop()
         return response
 
+    def set_device_authorized(self, device, authorized,
+                        sid=0, timeout=None):
+        """Changes 'authorized' status for a device'"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="SetDeviceAuthorized",
+            SessionID=sid,
+            DeviceID=device,
+            Authorized=authorized,
+            timeout=timeout,
+        )
+
     def account_id(self, sid=0, timeout=None):
         """Returns the accountId for this account."""
         sid = self._get_session_id(sid)
         return self._run(
             method="AccountId",
+            SessionID=sid,
+            timeout=timeout,
+        )
+
+    def device_id(self, sid=0, timeout=None):
+        """Returns the deviceId for this account."""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="DeviceId",
             SessionID=sid,
             timeout=timeout,
         )
