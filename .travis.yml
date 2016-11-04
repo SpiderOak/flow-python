@@ -1,0 +1,12 @@
+language: python
+
+before_install:
+- wget https://spideroak.com/releases/semaphor/debian -O semaphor.deb
+- sudo dpkg -i semaphor.deb
+
+install:
+- pip install -r requirements.txt
+- python setup.py install
+
+script: 
+- python -c "from flow import Flow; f = Flow(); assert f"
