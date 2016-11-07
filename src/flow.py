@@ -1797,6 +1797,69 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def set_account_preferences(self, preferences,
+                                clear_preferences=None, sid=0, timeout=None):
+        """"""
+        sid = self._get_session_id(sid)
+        self._run(
+            method="SetAccountPreferences",
+            SessionID=sid,
+            Preferences=preferences,
+            ClearPreferences=clear_preferences,
+            timeout=timeout,
+        )
+
+    def account_preferences(self, sid=0, timeout=None):
+        """"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="AccountPreferences",
+            SessionID=sid,
+            timeout=timeout,
+        )
+
+    def is_muted_by_preferences(self, oid, cid, aid, sid=0, timeout=None):
+        """"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="IsMutedByPreferences",
+            SessionID=sid,
+            OrgID=oid,
+            ChannelID=cid,
+            SenderID=aid,
+            timeout=timeout,
+        )
+
+    def mute_accounts(self, accounts, sid=0, timeout=None):
+        """"""
+        sid = self._get_session_id(sid)
+        self._run(
+            method="MuteAccounts",
+            SessionID=sid,
+            Accounts=accounts,
+            timeout=timeout,
+        )
+
+    def mute_orgs(self, orgs, sid=0, timeout=None):
+        """"""
+        sid = self._get_session_id(sid)
+        self._run(
+            method="MuteOrgs",
+            SessionID=sid,
+            Orgs=orgs,
+            timeout=timeout,
+        )
+
+    def mute_channels(self, channels, sid=0, timeout=None):
+        """"""
+        sid = self._get_session_id(sid)
+        self._run(
+            method="MuteChannels",
+            SessionID=sid,
+            Channels=channels,
+            timeout=timeout,
+        )
+
     def pause(self, sid=0, timeout=None):
         """Disconnect from the notification service.
         Any existing already-in-progress
