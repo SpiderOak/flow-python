@@ -274,7 +274,7 @@ class Flow(object):
                     )
                     notification_consumed = True
                 except Exception:
-                    LOG.exception("%s failed", callback.__name__)
+                    LOG.exception("%s failed", getattr(callback, "__name__", callback))
                 finally:
                     self.callback_lock.release()
             except Queue.Empty:
