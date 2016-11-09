@@ -1797,6 +1797,40 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def set_account_preferences(self, preferences,
+                                clear_preferences=None, sid=0, timeout=None):
+        """Sets and clear the specified preferences for the current account"""
+        sid = self._get_session_id(sid)
+        self._run(
+            method="SetAccountPreferences",
+            SessionID=sid,
+            Preferences=preferences,
+            ClearPreferences=clear_preferences,
+            timeout=timeout,
+        )
+
+    def account_preferences(self, sid=0, timeout=None):
+        """Returns the current account preferences"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="AccountPreferences",
+            SessionID=sid,
+            timeout=timeout,
+        )
+
+    def is_muted_by_preferences(self, oid, cid, aid, sid=0, timeout=None):
+        """Returns whether a message in the org, channel or by the sender
+        should be muted based on the current account's preferences"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="IsMutedByPreferences",
+            SessionID=sid,
+            OrgID=oid,
+            ChannelID=cid,
+            SenderID=aid,
+            timeout=timeout,
+        )
+
     def pause(self, sid=0, timeout=None):
         """Disconnect from the notification service.
         Any existing already-in-progress
