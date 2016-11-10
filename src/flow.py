@@ -59,10 +59,12 @@ class Flow(object):
     UPLOAD_PROGRESS_NOTIFICATION = "upload-progress-event"
     UPLOAD_COMPLETE_NOTIFICATION = "upload-complete-event"
     UPLOAD_ERROR_NOTIFICATION = "upload-error-event"
+    UPLOAD_CANCEL_NOTIFICATION = "upload-cancel-event"
     DOWNLOAD_START_NOTIFICATION = "download-start-event"
     DOWNLOAD_PROGRESS_NOTIFICATION = "download-progress-event"
     DOWNLOAD_COMPLETE_NOTIFICATION = "download-complete-event"
     DOWNLOAD_ERROR_NOTIFICATION = "download-error-event"
+    DOWNLOAD_CANCEL_NOTIFICATION = "download-cancel-event"
     CHANNEL_SESSION_KEY_NOTIFICATION = "channel-session-key"
     CHANNEL_SESSION_KEY_SHARE_NOTIFICATION = "channel-session-key-share"
     LDAP_BIND_REQUEST_NOTIFICATION = "ldap-bind-request"
@@ -111,6 +113,8 @@ class Flow(object):
         UPLOAD_COMPLETE_NOTIFICATION)
     upload_error_event = _make_notification_decorator(
         UPLOAD_ERROR_NOTIFICATION)
+    upload_cancel_event = _make_notification_decorator(
+        UPLOAD_CANCEL_NOTIFICATION)
     download_start_event = _make_notification_decorator(
         DOWNLOAD_START_NOTIFICATION)
     download_progress_event = _make_notification_decorator(
@@ -119,6 +123,8 @@ class Flow(object):
         DOWNLOAD_COMPLETE_NOTIFICATION)
     download_error_event = _make_notification_decorator(
         DOWNLOAD_ERROR_NOTIFICATION)
+    download_cancel_event = _make_notification_decorator(
+        DOWNLOAD_CANCEL_NOTIFICATION)
     channel_session_key = _make_notification_decorator(
         CHANNEL_SESSION_KEY_NOTIFICATION)
     channel_session_key_share = _make_notification_decorator(
@@ -144,6 +150,7 @@ class Flow(object):
             self.callbacks = {}  # Notification Name -> Function Object
             self.notification_queue = Queue.Queue()
             self.error_queue = Queue.Queue()
+            self.just_queue_error = None
             self.listen_notifications = threading.Event()
             self.notification_thread = threading.Thread(
                 target=self._notification_loop,
@@ -188,7 +195,10 @@ class Flow(object):
                     "Error queue is full: ignoring error '%s'",
                     ignored_error,
                 )
+            if self.just_queue_error == error:
+                return
             self.error_queue.put(error)
+            self.just_queue_error = error
 
         def _queue_changes(self, changes):
             """Queues the changes of registered change types.
@@ -241,6 +251,9 @@ class Flow(object):
             after 'timeout_secs'.
             Arguments:
             timeouts_secs : float, seconds to block waiting for notifications.
+            Returns True if a notification was processed successfully. And
+            False if there was no notification on the queue or it failed to be
+            processed.
             """
             notification_consumed = False
             try:
@@ -254,13 +267,16 @@ class Flow(object):
                             "Notification of type '%s' not supported.",
                             notification["type"],
                         )
-                    self.callbacks[notification["type"]](
-                        notification["type"], notification["data"])
-                except Exception as exception:
-                    LOG.debug("Error: %s", str(exception))
+                    callback = self.callbacks[notification["type"]]
+                    callback(
+                        notification["type"],
+                        notification["data"],
+                    )
+                    notification_consumed = True
+                except Exception:
+                    LOG.exception("%s failed", getattr(callback, "__name__", callback))
                 finally:
                     self.callback_lock.release()
-                notification_consumed = True
             except Queue.Empty:
                 notification_consumed = False
             return notification_consumed
@@ -320,7 +336,7 @@ class Flow(object):
         # Configure flowappglue and create the session
         self._config(host, port, db_dir, schema_dir, attachment_dir, use_tls)
         self._current_session = self.new_session()
-        self._loop_process_notifications = False
+        self._loop_process_notifications = threading.Event()
         # If username available then start the session
         if username:
             self.start_up(username)
@@ -341,6 +357,9 @@ class Flow(object):
         # TODO: call 'Close' flowapp API here as soon as it is supported
         self.glue_log_file.close()
         start = time.time()
+
+        # Stop 'process_notifications()' loop
+        self._loop_process_notifications.clear()
 
         # Terminate the flowappglue process
         if self._flowappglue and self._flowappglue.poll() is None:
@@ -546,7 +565,12 @@ class Flow(object):
         sid : int, SessionID.
         """
         sid = self._get_session_id(sid)
-        return self.sessions[sid].consume_notification(timeout_secs)
+        try:
+            session = self.sessions[sid]
+        except KeyError as key_error:
+            LOG.debug("no session %s", key_error)
+            return False
+        return session.consume_notification(timeout_secs)
 
     def get_notification_error(self, timeout_secs=0.05, sid=0):
         """Returns a notification error from the error queue.
@@ -567,9 +591,12 @@ class Flow(object):
     def set_processing_notifications(self, value=True):
         """Sets whether to continue processing the notifications.
         Use w/ value=False if you don't want to process more notifications.
-        It will make the app quit the 'process_notification()' loop.
+        It will make the app quit the 'process_notifications()' loop.
         """
-        self._loop_process_notifications = value
+        if value:
+            self._loop_process_notifications.set()
+        else:
+            self._loop_process_notifications.clear()
 
     def process_notifications(self, timeout_secs=0.05, sid=0):
         """Loop to processes notifications.
@@ -580,9 +607,20 @@ class Flow(object):
         sid : int, SessionID
         """
         sid = self._get_session_id(sid)
-        self._loop_process_notifications = True
-        while self._loop_process_notifications:
-            self.sessions[sid].consume_notification(timeout_secs)
+        self._loop_process_notifications.set()
+        LOG.debug("process_notifications start")
+        while self._loop_process_notifications.is_set():
+            try:
+                session = self.sessions[sid]
+            except KeyError as key_error:
+                LOG.debug("no session %s", key_error)
+                break
+            try:
+                session.consume_notification(timeout_secs)
+            except Exception:
+                # Log error and keep looping
+                LOG.exception("consume_notification failed")
+        LOG.debug("process_notifications done")
 
     def new_session(self, timeout=None):
         """Creates a new session.
@@ -977,6 +1015,16 @@ class Flow(object):
         file_basename = os.path.basename(file_path)
         return {"id": aid, "filename": file_basename}
 
+    def cancel_attachment_upload(self, attachid, sid=0):
+        """Cancel an active upload, if possible
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="CancelAttachmentUpload",
+            SessionID=sid,
+            AttachmentID=attachid,
+        )
+
     def start_attachment_download(
             self, aid, oid, cid, mid, sid=0, timeout=None):
         """Requests download of an attachment.
@@ -991,6 +1039,16 @@ class Flow(object):
             ChannelID=cid,
             MessageID=mid,
             timeout=timeout,
+        )
+
+    def cancel_attachment_download(self, attachid, sid=0):
+        """Cancel an active download, if possible
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="CancelAttachmentDownload",
+            SessionID=sid,
+            AttachmentID=attachid,
         )
 
     def update_attachment_path(self, aid, new_path, sid=0, timeout=None):
@@ -1020,22 +1078,33 @@ class Flow(object):
         )
 
     def send_message(self, oid, cid, msg, attachments=None,
-                     other_data=None, sid=0, timeout=None):
+                     other_data=None, push_notify_account_ids=None,
+                     sid=0, timeout=None):
         """Sends a message to a channel this user is a member of.
         Returns a string that represents the 'MessageID'
         that has just been sent.
         """
         sid = self._get_session_id(sid)
-        return self._run(
-            method="SendMessage",
-            SessionID=sid,
-            OrgID=oid,
-            ChannelID=cid,
-            Text=msg,
-            OtherData=other_data,
-            Attachments=attachments,
-            timeout=timeout,
-        )
+        run_kwargs = {
+            "method": "SendMessage",
+            "SessionID": sid,
+            "OrgID": oid,
+            "ChannelID": cid,
+            "Text": msg,
+            "OtherData": other_data,
+            "Attachments": attachments,
+            "timeout": timeout,
+        }
+
+        if push_notify_account_ids:
+            run_kwargs.update(
+                {
+                    "method": "SendMessageWithNotification",
+                    "PushNotifyAccountIDs": push_notify_account_ids,
+                }
+            )
+
+        return self._run(**run_kwargs)
 
     def mark_messages_deleted(self, oid, cid, cat, msgs, sid=0, timeout=None):
         """Marks messages as deleted."""
@@ -1705,6 +1774,73 @@ class Flow(object):
             Username=username,
             ServerURI=self.server_uri,
             LockType=lock_type,
+            timeout=timeout,
+        )
+
+    def ping(self, sid=0, timeout=None):
+        """Contact the server and report the result."""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="Ping",
+            SessionID=sid,
+            timeout=timeout,
+        )
+
+    def set_org_preferences(self, oid, preferences,
+                            clear_preferences=None, sid=0, timeout=None):
+        """Sets the preferences for org with id oid and clears the preference
+        items specified in clear_preferences"""
+        sid = self._get_session_id(sid)
+        self._run(
+            method="SetOrgPreferences",
+            SessionID=sid,
+            OrgID=oid,
+            Preferences=preferences,
+            ClearPreferences=clear_preferences,
+            timeout=timeout,
+        )
+
+    def org_preferences(self, oid, sid=0, timeout=None):
+        """Returns a dict for the preferences for the provided oid"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="OrgPreferences",
+            SessionID=sid,
+            OrgID=oid,
+            timeout=timeout,
+        )
+
+    def set_account_preferences(self, preferences,
+                                clear_preferences=None, sid=0, timeout=None):
+        """Sets and clear the specified preferences for the current account"""
+        sid = self._get_session_id(sid)
+        self._run(
+            method="SetAccountPreferences",
+            SessionID=sid,
+            Preferences=preferences,
+            ClearPreferences=clear_preferences,
+            timeout=timeout,
+        )
+
+    def account_preferences(self, sid=0, timeout=None):
+        """Returns the current account preferences"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="AccountPreferences",
+            SessionID=sid,
+            timeout=timeout,
+        )
+
+    def is_muted_by_preferences(self, oid, cid, aid, sid=0, timeout=None):
+        """Returns whether a message in the org, channel or by the sender
+        should be muted based on the current account's preferences"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="IsMutedByPreferences",
+            SessionID=sid,
+            OrgID=oid,
+            ChannelID=cid,
+            SenderID=aid,
             timeout=timeout,
         )
 

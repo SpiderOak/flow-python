@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/SpiderOak/flow-python.svg?branch=master)](https://travis-ci.org/SpiderOak/flow-python)
+
 # Python Flow Module
 
 ## Description
@@ -5,6 +7,9 @@
 flow-python is a module to interact with the Flow stack using python.
 
 ## Install
+
+1. Download and install Semaphor: https://spideroak.com/opendownload.
+2. Clone and install the flow-python repo:
 ```
 $ git clone https://github.com/SpiderOak/flow-python.git
 $ cd flow-python
@@ -18,7 +23,7 @@ Here's a simple script to list a user's Organizations/Teams:
 from flow import Flow
 
 # Create flow intance and start using the API
-flow = Flow('your-flow-username')
+flow = Flow('flow-username')
 
 # Print user's organizations
 print(flow.enumerate_orgs())
@@ -29,7 +34,7 @@ Here's a script that listens for messages and prints them to stdout:
 #!/usr/bin/env python
 from flow import Flow
 
-flow = Flow('your-flow-username')
+flow = Flow('flow-username')
 
 # Here we register our callback to be executed when we receive a message
 @flow.message
@@ -46,6 +51,7 @@ flow.process_notifications()
 ## Comments
 
 - Tested support on Linux, Windows and MacOS.
+- Supports Python2.7 and Python3.3-3.5
 - If you intend to use one of the examples above, 'your-flow-username' should already be logged-in in your device.
 - See [samples](samples/) directory for examples on how to use the module.
 - An application should use a single instance of `flow.Flow` per account.
@@ -69,6 +75,5 @@ See [CHANGELOG.md](CHANGELOG.md)
 - Document Flow dict objects that are returned on many of the methods. Or find a better way to return these (objects vs dicts?).
 - Unit Testing the flow module.
 - It has support for multiple sessions but this hasn't been tested yet.
-- Remove unnecessary args in Flow's `__init__()`.
 - Auto-generate API methods from the `flowapp` API.
 - See other TODOs in source code.
