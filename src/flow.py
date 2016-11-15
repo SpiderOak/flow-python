@@ -1127,7 +1127,7 @@ class Flow(object):
 
         return self._run(**run_kwargs)
 
-    def mark_messages_deleted(self, oid, cid, cat, msgs, sid=0, timeout=None):
+    def mark_messages_deleted(self, oid, cid, msgs, sid=0, timeout=None):
         """Marks messages as deleted."""
         sid = self._get_session_id(sid)
         self._run(
@@ -1135,7 +1135,6 @@ class Flow(object):
             SessionID=sid,
             OrgID=oid,
             ChannelID=cid,
-            MessageCategory=cat,
 			Messages=msgs,
             timeout=timeout,
         )
