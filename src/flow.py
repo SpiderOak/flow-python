@@ -977,6 +977,19 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def enumerate_integration_profiles(self, item, sid=0, timeout=None):
+        """Lists all the integration profiles for the specified item that
+        are known by this account.
+        Returns array of 'IntegrationProfile' dicts.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="EnumerateIntegrationProfiles",
+            SessionID=sid,
+            Item=item,
+            timeout=timeout,
+        )
+
     def enumerate_org_members(self, oid, sid=0, timeout=None):
         """Lists all members for an org and their state."""
         sid = self._get_session_id(sid)
