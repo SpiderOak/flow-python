@@ -1431,15 +1431,6 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def device_id(self, sid=0, timeout=None):
-        """Returns the DeviceId of the current device."""
-        sid = self._get_session_id(sid)
-        return self._run(
-            method="DeviceId",
-            SessionID=sid,
-            timeout=timeout,
-        )
-
     def start_d2d_rendezvous(self, sid=0, timeout=None):
         """StartD2DRendezvous generates a 32 random bytes for usage as a
         rendezvous ID in device to device provsioning and a key pair for DH.
