@@ -1818,6 +1818,16 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def new_auto_add_to_channels_pref(self, channels, sid=0, timeout=None):
+        """Returns a dict for the preferences for the provided oid"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="NewAutoAddToChannelsPref",
+            SessionID=sid,
+            channelHashIDs=channels,
+            timeout=timeout,
+        )
+
     def set_account_preferences(self, preferences,
                                 clear_preferences=None, sid=0, timeout=None):
         """Sets and clear the specified preferences for the current account"""
