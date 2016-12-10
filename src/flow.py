@@ -1824,7 +1824,7 @@ class Flow(object):
         return self._run(
             method="NewAutoAddToChannelsPref",
             SessionID=sid,
-            channelHashIDs=channels,
+            ChannelHashIDs=channels,
             timeout=timeout,
         )
 
