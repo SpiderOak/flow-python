@@ -27,6 +27,7 @@ from . import definitions
 
 LOG = logging.getLogger("flow")
 LOG.addHandler(logging.NullHandler())
+_FLOWAPPGLUE_WAIT_SECS = 5
 
 
 class Flow(object):
@@ -226,11 +227,9 @@ class Flow(object):
             """Loops calling WaitForNotification on this session."""
             while self.listen_notifications.is_set():
                 try:
-                    # we need a timeout here because otherwise we will not
-                    # detect that listen_notifications.is_set has been changed
-                    # until we receive another notification, and therefore may
-                    # not shut down promptly when needed.
-                    changes = self.flow.wait_for_notification(sid=self.sid, timeout=15)
+                    # we don't timeout to wait for notifications
+                    # in the notification loop.
+                    changes = self.flow.wait_for_notification(sid=self.sid)
                 except Exception as flow_err:
                     # Check whether flowappglue finished execution
                     if self.flowappglue.poll() is not None:
@@ -279,7 +278,9 @@ class Flow(object):
                     )
                     notification_consumed = True
                 except Exception:
-                    LOG.exception("%s failed", getattr(callback, "__name__", callback))
+                    LOG.exception(
+                        "%s failed", getattr(
+                            callback, "__name__", callback))
                 finally:
                     self.callback_lock.release()
             except Queue.Empty:
@@ -333,17 +334,24 @@ class Flow(object):
             stderr=self.glue_log_file,
         )
 
-        while True:
+        LOG.debug("reading floappglue token+port")
+        start = time.time()
+        while abs(time.time() - start) < _FLOWAPPGLUE_WAIT_SECS:
             data = stdout.read()
             if data and "\n" in data:
                 # the subprocess will still keep the file open, but we want
                 # the file to be deleted when the subprocess exits, so we
                 # should not keep a copy of it.
-                stdout.close() 
-                token_port_line = json.loads(data)
+                stdout.close()
+                try:
+                    token_port_line = json.loads(data)
+                except TypeError:
+                    token_port_line = json.loads(data.decode())
                 break
             stdout.seek(0)
             time.sleep(0.1)
+        else:
+            raise Flow.FlowError("failed to read flowappglue token+port")
 
         self._token = token_port_line["token"]
         self._port = token_port_line["port"]
@@ -392,7 +400,7 @@ class Flow(object):
                     )
                     try:
                         self._flowappglue.kill()
-                    except OSError, err:
+                    except OSError as err:
                         LOG.warn("OSError killing process: %s", err)
                     break
 
@@ -873,7 +881,7 @@ class Flow(object):
         return response
 
     def set_device_authorized(self, device, authorized,
-                        sid=0, timeout=None):
+                              sid=0, timeout=None):
         """Changes 'authorized' status for a device'"""
         sid = self._get_session_id(sid)
         return self._run(
