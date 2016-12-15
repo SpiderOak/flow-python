@@ -304,6 +304,7 @@ class Flow(object):
             schema_dir=definitions.get_default_schema_path(),
             attachment_dir=definitions.get_default_attachment_path(),
             use_tls=definitions.DEFAULT_USE_TLS,
+            glue_out_filename=None,
             decrement_file=None):
         """Initializes the Flow object. It starts and configures
         flowappglue local server as a subprocess.
@@ -319,6 +320,8 @@ class Flow(object):
         self.api_timeout = None
         self._check_file_exists(flowappglue)
         self._check_file_exists(db_dir, True)
+        if glue_out_filename is not None:
+            LOG.warning("glue_out_filename is a deprecated argument")
         glue = [flowappglue, "0"]
         if decrement_file is not None:
             glue = [flowappglue, "--decrement-file", decrement_file, "0"]
@@ -1155,7 +1158,7 @@ class Flow(object):
             SessionID=sid,
             OrgID=oid,
             ChannelID=cid,
-			Messages=msgs,
+            Messages=msgs,
             timeout=timeout,
         )
 
