@@ -23,7 +23,6 @@ execute() {
 if [ "$1" == "--format" ] ; then
     execute "autopep8 -va --in-place --max-line-length 79"
 else
-    execute vulture
     execute pyflakes
     execute pep8
     execute pylint

@@ -304,7 +304,7 @@ class Flow(object):
             schema_dir=definitions.get_default_schema_path(),
             attachment_dir=definitions.get_default_attachment_path(),
             use_tls=definitions.DEFAULT_USE_TLS,
-            glue_out_filename=definitions.get_default_glue_out_filename(),
+            glue_out_filename=None,
             decrement_file=None):
         """Initializes the Flow object. It starts and configures
         flowappglue local server as a subprocess.
@@ -320,18 +320,24 @@ class Flow(object):
         self.api_timeout = None
         self._check_file_exists(flowappglue)
         self._check_file_exists(db_dir, True)
+        if glue_out_filename is not None:
+            LOG.warning("glue_out_filename is a deprecated argument")
         glue = [flowappglue, "0"]
         if decrement_file is not None:
             glue = [flowappglue, "--decrement-file", decrement_file, "0"]
-        self.glue_log_file = open(glue_out_filename, "w")
 
         # use a tempfile instead of a pipe for stdout, because floappglue may
         # create enough output that it fills up the PIPE buffer and deadlocks.
         stdout = tempfile.TemporaryFile()
+        # suppress stderr
+        try:
+            from subprocess import DEVNULL
+        except ImportError:
+            DEVNULL = open(os.devnull, 'wb')
         self._flowappglue = subprocess.Popen(
             glue,
             stdout=stdout,
-            stderr=self.glue_log_file,
+            stderr=DEVNULL,
         )
 
         LOG.debug("reading floappglue token+port")
@@ -364,11 +370,6 @@ class Flow(object):
         if username:
             self.start_up(username)
 
-    def clear_glue_log(self):
-        """Clears the flowappglue stderr log file."""
-        self.glue_log_file.seek(0)
-        self.glue_log_file.truncate()
-
     def terminate(self, timeout_secs=5):
         """Shuts down the semaphor-backend local server.
         Use this when you are done using the Flow API with this object.
@@ -378,7 +379,6 @@ class Flow(object):
         to the semaphor-backend process.
         """
         # TODO: call 'Close' flowapp API here as soon as it is supported
-        self.glue_log_file.close()
         start = time.time()
 
         # Stop 'process_notifications()' loop
@@ -911,15 +911,6 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def device_id(self, sid=0, timeout=None):
-        """Returns the deviceId for this account."""
-        sid = self._get_session_id(sid)
-        return self._run(
-            method="DeviceId",
-            SessionID=sid,
-            timeout=timeout,
-        )
-
     def build_number(self, sid=0, timeout=None):
         """Returns the build number for the glue binary."""
         sid = self._get_session_id(sid)
@@ -1168,7 +1159,7 @@ class Flow(object):
             SessionID=sid,
             OrgID=oid,
             ChannelID=cid,
-			Messages=msgs,
+            Messages=msgs,
             timeout=timeout,
         )
 
