@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4
+
+- flowappglue now handles its own logging, therefore `Flow.__init__()` method does not need the `glue_out_filename` argument anymore. Logs are now placed under the directory specified by the `db_dir` argument, and are of the form `semaphor_${timestamp_in_microseconds}.log`.
+
 ## 0.3
 
 - Config directory name is updated from `semaphor` to `flow-python`. This change is needed to avoid collision with Semaphor config directory. The full path of the config directory depends on the platform:
