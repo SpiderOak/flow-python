@@ -901,15 +901,6 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def device_id(self, sid=0, timeout=None):
-        """Returns the deviceId for this account."""
-        sid = self._get_session_id(sid)
-        return self._run(
-            method="DeviceId",
-            SessionID=sid,
-            timeout=timeout,
-        )
-
     def build_number(self, sid=0, timeout=None):
         """Returns the build number for the glue binary."""
         sid = self._get_session_id(sid)
