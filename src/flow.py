@@ -1242,6 +1242,41 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def start_search(self, search_id, url, sid=0, timeout=None):
+        """Start a global search"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="StartSearch",
+            SessionID=sid,
+            Id=search_id,
+            url=url,
+            timeout=timeout,
+        )
+
+    def poll_search(self, search_id, sid=0, timeout=None):
+        """poll for new search status"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="PollSearch",
+            SessionID=sid,
+            Id=search_id,
+            timeout=timeout,
+        )
+
+    def search_message_results(self, search_id, org_id, channel_id, start, stop, sid=0, timeout=None):
+        """get message slice from search results"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="SearchMessageResults",
+            SessionID=sid,
+            Id=search_id,
+            Org=org_id,
+            Channel=channel_id,
+            Start=start,
+            Stop=stop,
+            timeout=timeout,
+        )
+
     def get_channel(self, cid, sid=0, timeout=None):
         """Returns all the metadata for a channel the user is a member of.
         Returns a 'Channel' dict.
