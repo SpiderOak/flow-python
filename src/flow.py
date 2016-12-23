@@ -880,6 +880,16 @@ class Flow(object):
         self.sessions[sid].start_notification_loop()
         return response
 
+    def set_device_name(self, name, sid=0, timeout=None):
+        """Sets the name column for a device'"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="SetDeviceName",
+            SessionID=sid,
+            Name=name,
+            timeout=timeout,
+        )
+
     def set_device_authorized(self, device, authorized,
                               sid=0, timeout=None):
         """Changes 'authorized' status for a device'"""
