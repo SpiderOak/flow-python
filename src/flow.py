@@ -1222,14 +1222,15 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def start_search(self, search_id, url, sid=0, timeout=None):
+    def start_search(self, search_id, url, options, sid=0, timeout=None):
         """Start a global search"""
         sid = self._get_session_id(sid)
         return self._run(
             method="StartSearch",
             SessionID=sid,
             Id=search_id,
-            url=url,
+            Url=url,
+            Options=options,
             timeout=timeout,
         )
 
@@ -1243,6 +1244,16 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def destroy_search(self, search_id, sid=0, timeout=None):
+        """poll for new search status"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="DestroySearch",
+            SessionID=sid,
+            Id=search_id,
+            timeout=timeout,
+        )
+
     def search_message_results(self, search_id, org_id, channel_id, start, stop, sid=0, timeout=None):
         """get message slice from search results"""
         sid = self._get_session_id(sid)
@@ -1250,10 +1261,24 @@ class Flow(object):
             method="SearchMessageResults",
             SessionID=sid,
             Id=search_id,
-            Org=org_id,
-            Channel=channel_id,
+            OrgId=org_id,
+            ChannelId=channel_id,
             Start=start,
             Stop=stop,
+            timeout=timeout,
+        )
+
+    def search_message_context(self, search_id, channel_id, message_id, before, after, sid=0, timeout=None):
+        """get message slice from search results"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="SearchMessageContext",
+            SessionID=sid,
+            Id=search_id,
+            ChannelId=channel_id,
+            MessageId=message_id,
+            Before=before,
+            After=after,
             timeout=timeout,
         )
 
