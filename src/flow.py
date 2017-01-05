@@ -1637,17 +1637,17 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def set_channel_retention_policy(self, oid, cid, cat, days, msgs, sid=0, timeout=None):
-        """Sets a new message retention policy for an account in a channel."""
+    def set_channel_retention_policy(
+            self, oid, cid, days, msgs, sid=0, timeout=None):
+        """Sets a new message retention policy for the given channel."""
         sid = self._get_session_id(sid)
-        result = self._run(
+        return self._run(
             method="SetChannelRetentionPolicy",
             SessionID=sid,
             OrgID=oid,
             ChannelID=cid,
-            MessageCategory=cat,
-			MaxDays=days,
-			MaxMessages=msgs,
+            MaxDays=days,
+            MaxMessages=msgs,
             timeout=timeout,
         )
 
