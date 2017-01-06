@@ -2049,6 +2049,17 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def setup_escrow(self, oid, aid, sid=0, timeout=None):
+        """Requests the server to set up an escrow bot"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="SetupEscrow",
+            SessionID=sid,
+            OrgID=oid,
+            AccountID=aid,
+            timeout=timeout,
+        )
+
     def pause(self, sid=0, timeout=None):
         """Disconnect from the notification service.
         Any existing already-in-progress
