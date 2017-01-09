@@ -305,7 +305,8 @@ class Flow(object):
             attachment_dir=definitions.get_default_attachment_path(),
             use_tls=definitions.DEFAULT_USE_TLS,
             glue_out_filename=None,
-            decrement_file=None):
+            decrement_file=None,
+            extra_config={}):
         """Initializes the Flow object. It starts and configures
         flowappglue local server as a subprocess.
         It also starts a new session so that you can start using
@@ -363,7 +364,15 @@ class Flow(object):
         self._port = token_port_line["port"]
         self.sessions = {}  # SessionID -> _Session
         # Configure flowappglue and create the session
-        self._config(host, port, db_dir, schema_dir, attachment_dir, use_tls)
+        self._config(
+            host,
+            port,
+            db_dir,
+            schema_dir,
+            attachment_dir,
+            use_tls,
+            None,
+            extra_config)
         self._current_session = self.new_session()
         self._loop_process_notifications = threading.Event()
         # If username available then start the session
@@ -533,7 +542,8 @@ class Flow(object):
             schema_dir,
             attachment_dir,
             use_tls,
-            timeout=None):
+            timeout=None,
+            extra_config={}):
         """Sets up the basic configuration parameters for FlowApp
         to talk FlowServ and create local accounts.
         If arguments are empty, then it will try to determine the
@@ -542,16 +552,16 @@ class Flow(object):
         self._check_file_exists(schema_dir)
         self._check_file_exists(db_dir, True)
         self._check_file_exists(attachment_dir, True)
-        self._run(
-            method="Config",
+        args = dict(
             FlowServHost=host,
             FlowServPort=port,
             FlowLocalDatabaseDir=db_dir,
             FlowLocalSchemaDir=schema_dir,
             FlowLocalAttachmentDir=attachment_dir,
             FlowUseTLS=use_tls,
-            timeout=timeout,
         )
+        args.update(extra_config)
+        self._run("Config", timeout, **args)
 
     def register_callback(self, notification_name,
                           callback, sid=0):
