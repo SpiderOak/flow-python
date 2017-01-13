@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5
+
+- With the new auto-updates feature in Semaphor, the path to locate `semaphor-backend` and `flowapp/schema` was updated. If you are using the latest version of Semaphor with auto-updates, then you need to install `flow-python` v0.5.
+
 ## 0.4
 
 - flowappglue now handles its own logging, therefore `Flow.__init__()` method does not need the `glue_out_filename` argument anymore. Logs are now placed under the directory specified by the `db_dir` argument, and are of the form `semaphor_${timestamp_in_microseconds}.log`.
