@@ -2007,6 +2007,17 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def enumerate_escrow_accounts(self, sid=0, timeout=None):
+        """Lists the escrow accounts known to the user'.
+        Returns an array of 'EscrowAccount' dicts.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="EnumerateEscrowAccounts",
+            SessionID=sid,
+            timeout=timeout,
+        )
+
     def pause(self, sid=0, timeout=None):
         """Disconnect from the notification service.
         Any existing already-in-progress
