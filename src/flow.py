@@ -1242,6 +1242,66 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def start_search(self, search_id, url, options, sid=0, timeout=None):
+        """Start a global search"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="StartSearch",
+            SessionID=sid,
+            Id=search_id,
+            Url=url,
+            Options=options,
+            timeout=timeout,
+        )
+
+    def poll_search(self, search_id, sid=0, timeout=None):
+        """poll for new search status"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="PollSearch",
+            SessionID=sid,
+            Id=search_id,
+            timeout=timeout,
+        )
+
+    def destroy_search(self, search_id, sid=0, timeout=None):
+        """poll for new search status"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="DestroySearch",
+            SessionID=sid,
+            Id=search_id,
+            timeout=timeout,
+        )
+
+    def search_message_results(self, search_id, org_id, channel_id, start, stop, sid=0, timeout=None):
+        """get message slice from search results"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="SearchMessageResults",
+            SessionID=sid,
+            Id=search_id,
+            OrgId=org_id,
+            ChannelId=channel_id,
+            Start=start,
+            Stop=stop,
+            timeout=timeout,
+        )
+
+    def search_message_context(self, search_id, channel_id, message_id, before, after, sid=0, timeout=None):
+        """get message slice from search results"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="SearchMessageContext",
+            SessionID=sid,
+            Id=search_id,
+            ChannelId=channel_id,
+            MessageId=message_id,
+            Before=before,
+            After=after,
+            timeout=timeout,
+        )
+
     def get_channel(self, cid, sid=0, timeout=None):
         """Returns all the metadata for a channel the user is a member of.
         Returns a 'Channel' dict.
