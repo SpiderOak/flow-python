@@ -15,6 +15,14 @@ $ git clone https://github.com/SpiderOak/flow-python.git
 $ cd flow-python
 $ python setup.py install
 ```
+
+### Try it out with docker
+
+```
+$ docker build -t test/flow-python .
+$ docker run -it test/flow-python /usr/bin/python
+```
+
 ## Basic Usage
 
 Here's a simple script to list a user's Organizations/Teams:
