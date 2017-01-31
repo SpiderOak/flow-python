@@ -1886,6 +1886,19 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def auto_add_to_channels_pref(
+            self, data, sid=0, timeout=None):
+        """returns list of channel-ids from auto-add-to-channel preference
+        (inverse of new_auto_add_to_channels_pref)
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="AutoAddToChannelsPref",
+            SessionID=sid,
+            data=data,
+            timeout=timeout,
+        )
+
     def set_account_preferences(self, preferences,
                                 clear_preferences=None, sid=0, timeout=None):
         """Sets and clear the specified preferences for the current account"""
