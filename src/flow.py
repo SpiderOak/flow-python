@@ -71,6 +71,7 @@ class Flow(object):
     CHANNEL_SESSION_KEY_SHARE_NOTIFICATION = "channel-session-key-share"
     LDAP_BIND_REQUEST_NOTIFICATION = "ldap-bind-request"
     NOTIFY_EVENT_NOTIFICATION = "notify-event"
+    MESSAGE_DELETION_NOTIFICATION = "message-deletion"
 
     # Lock types
     UNLOCK = 0
@@ -135,6 +136,8 @@ class Flow(object):
         LDAP_BIND_REQUEST_NOTIFICATION)
     notify_event = _make_notification_decorator(
         NOTIFY_EVENT_NOTIFICATION)
+    message_deletion = _make_notification_decorator(
+        MESSAGE_DELETION_NOTIFICATION)
 
     class _Session(object):
         """Internal class to hold session data."""
