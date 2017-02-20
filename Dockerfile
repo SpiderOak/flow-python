@@ -1,6 +1,6 @@
 FROM python:2.7
 
-MAINTAINER Lucas Manuel Rodriguez <lucas@spideroak-inc.com>
+LABEL maintainer "lucas@spideroak-inc.com"
 
 # Update pip
 RUN pip install --upgrade \
