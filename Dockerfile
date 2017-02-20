@@ -6,12 +6,10 @@ MAINTAINER Lucas Manuel Rodriguez <lucas@spideroak-inc.com>
 RUN pip install --upgrade \
     pip
 
-# Download Semaphor
+# Download and install Semaphor
 RUN wget https://spideroak.com/releases/semaphor/debian \
     && dpkg -i debian \
     && rm -rf debian
 
 # Install flow-python
-RUN git clone https://github.com/SpiderOak/flow-python.git
-WORKDIR flow-python
-RUN pip install .
+RUN pip install git+https://github.com/SpiderOak/flow-python.git
