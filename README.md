@@ -20,7 +20,7 @@ $ python setup.py install
 
 ```
 $ docker build -t test/flow-python .
-$ docker run -it test/flow-python /usr/bin/python
+$ docker run -it test/flow-python
 ```
 
 ## Basic Usage
