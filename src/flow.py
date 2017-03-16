@@ -2055,6 +2055,27 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def fetch_deleted_messages(self, oid, sid=0, timeout=None):
+        """Escrow accounts can fetch deleted messages from the server
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="FetchDeletedMessages",
+            OrgID=oid,
+            SessionID=sid,
+            timeout=timeout,
+        )
+
+    def enumerate_deleted_messages(self, cid, sid=0, timeout=None):
+        """Escrow accounts-only: Enumerate deleted messages from one channel"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="EnumerateDeletedMessages",
+            ChannelID=cid,
+            SessionID=sid,
+            timeout=timeout,
+        )
+
     def pause(self, sid=0, timeout=None):
         """Disconnect from the notification service.
         Any existing already-in-progress
