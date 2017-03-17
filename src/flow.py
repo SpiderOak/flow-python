@@ -251,6 +251,31 @@ class Flow(object):
                 timeout=timeout_secs,
             )
 
+        def _process_notification(self, notification):
+            """Executes the callback for the notification (if any).
+            Returns True if the callback was executed successfully, and
+            returns False if there was no callback associated to the
+            notification.
+            """
+            notification_consumed = False
+            try:
+                self.callback_lock.acquire()
+                callback = self.callbacks.get(notification["type"])
+                if not callback:
+                    LOG.debug(
+                        "no callback for notification of type=%s",
+                        notification["type"],
+                    )
+                else:
+                    callback(
+                        notification["type"],
+                        notification["data"],
+                    )
+                    notification_consumed = True
+            finally:
+                self.callback_lock.release()
+            return notification_consumed
+
         def consume_notification(self, timeout_secs):
             """Consumes the notification queue for this session
             and execute the callbacks. This call blocks until there is
@@ -258,37 +283,17 @@ class Flow(object):
             after 'timeout_secs'.
             Arguments:
             timeouts_secs : float, seconds to block waiting for notifications.
-            Returns True if a notification was processed successfully. And
-            False if there was no notification on the queue or it failed to be
-            processed.
+            Returns True if a notification was processed successfully, and
+            False if no notification was processed.
             """
-            notification_consumed = False
             try:
-                notification = \
-                    self.notification_queue.get(
-                        block=True, timeout=timeout_secs)
-                try:
-                    self.callback_lock.acquire()
-                    if notification["type"] not in self.callbacks:
-                        raise Exception(
-                            "Notification of type '%s' not supported.",
-                            notification["type"],
-                        )
-                    callback = self.callbacks[notification["type"]]
-                    callback(
-                        notification["type"],
-                        notification["data"],
-                    )
-                    notification_consumed = True
-                except Exception:
-                    LOG.exception(
-                        "%s failed", getattr(
-                            callback, "__name__", callback))
-                finally:
-                    self.callback_lock.release()
+                notif = self.notification_queue.get(
+                    block=True,
+                    timeout=timeout_secs,
+                )
             except Queue.Empty:
-                notification_consumed = False
-            return notification_consumed
+                return False
+            return self._process_notification(notif)
 
         def close(self):
             """Closes the session by terminating the listener thread."""
@@ -1277,7 +1282,8 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def search_message_results(self, search_id, org_id, channel_id, start, stop, sid=0, timeout=None):
+    def search_message_results(
+            self, search_id, org_id, channel_id, start, stop, sid=0, timeout=None):
         """get message slice from search results"""
         sid = self._get_session_id(sid)
         return self._run(
@@ -1291,7 +1297,8 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def search_message_context(self, search_id, channel_id, message_id, before, after, sid=0, timeout=None):
+    def search_message_context(
+            self, search_id, channel_id, message_id, before, after, sid=0, timeout=None):
         """get message slice from search results"""
         sid = self._get_session_id(sid)
         return self._run(
