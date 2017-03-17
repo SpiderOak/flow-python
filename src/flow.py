@@ -72,6 +72,7 @@ class Flow(object):
     LDAP_BIND_REQUEST_NOTIFICATION = "ldap-bind-request"
     NOTIFY_EVENT_NOTIFICATION = "notify-event"
     MESSAGE_DELETION_NOTIFICATION = "message-deletion"
+    ESCROW_NOTIFICATION = "escrow"
 
     # Lock types
     UNLOCK = 0
@@ -138,6 +139,8 @@ class Flow(object):
         NOTIFY_EVENT_NOTIFICATION)
     message_deletion = _make_notification_decorator(
         MESSAGE_DELETION_NOTIFICATION)
+    escrow = _make_notification_decorator(
+        ESCROW_NOTIFICATION)
 
     class _Session(object):
         """Internal class to hold session data."""
