@@ -2036,28 +2036,6 @@ class Flow(object):
         self.sessions[sid].start_notification_loop()
         return response
 
-    def setup_escrow(self, oid, aid, sid=0, timeout=None):
-        """Requests the server to set up an escrow bot."""
-        sid = self._get_session_id(sid)
-        return self._run(
-            method="SetupEscrow",
-            SessionID=sid,
-            OrgID=oid,
-            AccountID=aid,
-            timeout=timeout,
-        )
-
-    def enumerate_escrow_accounts(self, sid=0, timeout=None):
-        """Lists the escrow accounts known to the user'.
-        Returns an array of 'EscrowAccount' dicts.
-        """
-        sid = self._get_session_id(sid)
-        return self._run(
-            method="EnumerateEscrowAccounts",
-            SessionID=sid,
-            timeout=timeout,
-        )
-
     def fetch_deleted_messages(self, oid, sid=0, timeout=None):
         """Escrow accounts can fetch deleted messages from the server
         """
