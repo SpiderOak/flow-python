@@ -331,25 +331,52 @@ class Flow(object):
         self._check_file_exists(db_dir, True)
         if glue_out_filename is not None:
             LOG.warning("glue_out_filename is a deprecated argument")
-        glue = [flowappglue, "0"]
-        if decrement_file is not None:
-            glue = [flowappglue, "--decrement-file", decrement_file, "0"]
+        self._token, self._port = self._start_flowappglue(
+            db_dir,
+            flowappglue,
+            decrement_file,
+        )
+        self.sessions = {}  # SessionID -> _Session
+        # Configure flowappglue and create the session
+        self._config(
+            host,
+            port,
+            db_dir,
+            schema_dir,
+            attachment_dir,
+            use_tls,
+            None,
+            extra_config)
+        self._current_session = self.new_session()
+        self._loop_process_notifications = threading.Event()
+        # If username available then start the session
+        if username:
+            self.start_up(username)
 
-        # use a tempfile instead of a pipe for stdout, because floappglue may
+    def _start_flowappglue(self, db_dir, flowappglue_path, decrement_file):
+        """Starts the flowappglue/semaphor-backend process.
+        Returns the token (string) and port (int) read
+        from the subprocess stdout.
+        """
+        glue = [flowappglue_path, "0"]
+        if decrement_file is not None:
+            glue = [flowappglue_path, "--decrement-file", decrement_file, "0"]
+        # use a tempfile instead of a pipe for stdout, because flowappglue may
         # create enough output that it fills up the PIPE buffer and deadlocks.
         stdout = tempfile.TemporaryFile()
-        # suppress stderr
-        try:
-            from subprocess import DEVNULL
-        except ImportError:
-            DEVNULL = open(os.devnull, 'wb')
-        self._flowappglue = subprocess.Popen(
-            glue,
-            stdout=stdout,
-            stderr=DEVNULL,
+        # let's place flowappglue stderr on a separate file
+        stderr_file = os.path.join(
+            db_dir,
+            "semaphor_err_%d.log" % int(time.time()),
         )
-
-        LOG.debug("reading floappglue token+port")
+        with open(stderr_file, "w") as stderr:
+            self._flowappglue = subprocess.Popen(
+                glue,
+                stdout=stdout,
+                stderr=stderr,
+            )
+        LOG.debug("reading flowappglue token+port")
+        token_port_line = {}
         start = time.time()
         while abs(time.time() - start) < _FLOWAPPGLUE_WAIT_SECS:
             data = stdout.read()
@@ -367,25 +394,7 @@ class Flow(object):
             time.sleep(0.1)
         else:
             raise Flow.FlowError("failed to read flowappglue token+port")
-
-        self._token = token_port_line["token"]
-        self._port = token_port_line["port"]
-        self.sessions = {}  # SessionID -> _Session
-        # Configure flowappglue and create the session
-        self._config(
-            host,
-            port,
-            db_dir,
-            schema_dir,
-            attachment_dir,
-            use_tls,
-            None,
-            extra_config)
-        self._current_session = self.new_session()
-        self._loop_process_notifications = threading.Event()
-        # If username available then start the session
-        if username:
-            self.start_up(username)
+        return token_port_line["token"], token_port_line["port"]
 
     def terminate(self, timeout_secs=5):
         """Shuts down the semaphor-backend local server.
