@@ -174,13 +174,16 @@ class Flow(object):
             If callback is None, then all callbacks associated with
             notification_name are unregistered. If a callback is provided
             then only that callback is unregistered for the given
-            notification_name.
+            notification_name. If the notification_name is not registered,
+            then this is a no-op.
             Arguments:
             notification_name : string, type of the notification.
             callback : function object to unregister.
             """
             try:
                 self.callback_lock.acquire()
+                if notification_name not in self.callbacks:
+                    return
                 if callback is None:
                     del self.callbacks[notification_name]
                 else:
