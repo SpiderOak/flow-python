@@ -152,14 +152,15 @@ class Flow(object):
             self.flowappglue = flow._flowappglue
             self.sid = sid
             self.flow = flow
-            self.callbacks = {}  # Notification Name -> Function Object
+            self.callbacks = {}  # Notification Name -> [Function Object]
             self.notification_queue = Queue.Queue()
             self.error_queue = Queue.Queue()
             self.just_queue_error = None
             self.listen_notifications = threading.Event()
             self.notification_thread = threading.Thread(
                 target=self._notification_loop,
-                args=())
+                args=(),
+            )
             self.notification_thread.daemon = True
             self.callback_lock = threading.Lock()
 
@@ -168,24 +169,42 @@ class Flow(object):
             self.listen_notifications.set()
             self.notification_thread.start()
 
-        def unregister_callback(self, notification_name):
+        def unregister_callback(self, notification_name, callback=None):
             """Unregisters a callback for this session.
+            If callback is None, then all callbacks associated with
+            notification_name are unregistered. If a callback is provided
+            then only that callback is unregistered for the given
+            notification_name.
             Arguments:
             notification_name : string, type of the notification.
+            callback : function object to unregister.
             """
-            self.callback_lock.acquire()
-            del self.callbacks[notification_name]
-            self.callback_lock.release()
+            try:
+                self.callback_lock.acquire()
+                if callback is None:
+                    del self.callbacks[notification_name]
+                else:
+                    self.callbacks[notification_name].remove(callback)
+                    if not self.callbacks[notification_name]:
+                        del self.callbacks[notification_name]
+            finally:
+                self.callback_lock.release()
 
         def register_callback(self, notification_name, callback):
             """Registers a callback for a notification type.
+            You can assign multiple callback functions to the same
+            notification_name by calling this function multiple times.
             Arguments:
             notification_name : string, type of the notification
             callback : function object that receives a string as argument.
             """
-            self.callback_lock.acquire()
-            self.callbacks[notification_name] = callback
-            self.callback_lock.release()
+            try:
+                self.callback_lock.acquire()
+                if not self.callbacks.get(notification_name):
+                    self.callbacks[notification_name] = []
+                self.callbacks[notification_name].append(callback)
+            finally:
+                self.callback_lock.release()
 
         def _queue_error(self, error):
             """Queues the notification error.
@@ -260,17 +279,18 @@ class Flow(object):
             notification_consumed = False
             try:
                 self.callback_lock.acquire()
-                callback = self.callbacks.get(notification["type"])
-                if not callback:
+                callbacks = self.callbacks.get(notification["type"])
+                if not callbacks:
                     LOG.debug(
                         "no callback for notification of type=%s",
                         notification["type"],
                     )
                 else:
-                    callback(
-                        notification["type"],
-                        notification["data"],
-                    )
+                    for callback in callbacks:
+                        callback(
+                            notification["type"],
+                            notification["data"],
+                        )
                     notification_consumed = True
             finally:
                 self.callback_lock.release()
