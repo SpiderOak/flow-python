@@ -94,12 +94,17 @@ def get_default_db_path():
     return _get_config_path()
 
 
+def get_app_path():
+    """Returns the app path for the current platform."""
+    return _APP_OS_PATH_MAP[sys.platform]()
+
+
 def get_default_schema_path():
     """Returns the default schema directory depending on the platform.
     E.g. on OSX it would be:
     /Applications/Semaphor.app/Contents/Resources/app/schema.
     """
-    return os.path.join(_APP_OS_PATH_MAP[sys.platform](), _DEFAULT_SCHEMA_DIR)
+    return os.path.join(get_app_path(), _DEFAULT_SCHEMA_DIR)
 
 
 def get_default_attachment_path():
@@ -114,12 +119,13 @@ def get_default_flowappglue_path():
     """Returns a string with the absolute path for
     the flowappglue binary; the return value depends on the platform.
     """
+    app_path = get_app_path()
     flowappglue_path = os.path.join(
-        _APP_OS_PATH_MAP[sys.platform](),
+        app_path,
         _DEFAULT_FLOWAPPGLUE_BINARY_PROD_NAME)
     if os.path.isfile(flowappglue_path):
         return flowappglue_path
     flowappglue_path = os.path.join(
-        _APP_OS_PATH_MAP[sys.platform](),
+        app_path,
         _DEFAULT_FLOWAPPGLUE_BINARY_DEV_NAME)
     return flowappglue_path
