@@ -1,5 +1,7 @@
 """
 definitions.py
+
+Main definitions and platform specific functionality.
 """
 
 import os
@@ -11,6 +13,7 @@ DEFAULT_SERVER = "flow.spideroak.com"
 DEFAULT_PORT = "443"
 DEFAULT_USE_TLS = "true"
 DEFAULT_URI = "flow.spideroak.com"
+DEFAULT_AUTO_UPDATE_PK = "zm5MU5d4M+an/ndE1dHrtbLfpNj1BJUBNEcJJpUWi70="
 
 _CONFIG_DIR_NAME = "flow-python"
 
@@ -35,6 +38,19 @@ _DEFAULT_SCHEMA_DIR = "schema"
 _EXE_EXT = ".exe" if sys.platform == "win32" else ""
 _DEFAULT_FLOWAPPGLUE_BINARY_DEV_NAME = "flowappglue%s" % _EXE_EXT
 _DEFAULT_FLOWAPPGLUE_BINARY_PROD_NAME = "semaphor-backend%s" % _EXE_EXT
+
+
+class AutoUpdatesError(Exception):
+    """Automatic updates specific error."""
+
+
+def auto_update_app_dir():
+    if sys.platform == "darwin":
+        return os.path.join("Contents", "Resources", "app")
+    elif sys.platform in ("linux", "linux2", "win32"):
+        return os.path.join("resources", "app")
+    else:
+        raise AutoUpdatesError("unknown platform: %s" % sys.platform)
 
 
 def _osx_app_path():
@@ -94,19 +110,6 @@ def get_default_db_path():
     return _get_config_path()
 
 
-def get_app_path():
-    """Returns the app path for the current platform."""
-    return _APP_OS_PATH_MAP[sys.platform]()
-
-
-def get_default_schema_path():
-    """Returns the default schema directory depending on the platform.
-    E.g. on OSX it would be:
-    /Applications/Semaphor.app/Contents/Resources/app/schema.
-    """
-    return os.path.join(get_app_path(), _DEFAULT_SCHEMA_DIR)
-
-
 def get_default_attachment_path():
     """Returns the default attachment directory depending on the platform.
     E.g. on OSX it would be:
@@ -115,11 +118,23 @@ def get_default_attachment_path():
     return os.path.join(_get_config_path(), _DEFAULT_ATTACHMENT_DIR)
 
 
-def get_default_flowappglue_path():
+def get_app_path():
+    """Returns the app path for the current platform."""
+    return _APP_OS_PATH_MAP[sys.platform]()
+
+
+def get_schema_path(app_path):
+    """Returns the default schema directory depending on the platform.
+    E.g. on OSX it would be:
+    /Applications/Semaphor.app/Contents/Resources/app/schema.
+    """
+    return os.path.join(app_path, _DEFAULT_SCHEMA_DIR)
+
+
+def get_flowappglue_path(app_path):
     """Returns a string with the absolute path for
     the flowappglue binary; the return value depends on the platform.
     """
-    app_path = get_app_path()
     flowappglue_path = os.path.join(
         app_path,
         _DEFAULT_FLOWAPPGLUE_BINARY_PROD_NAME)

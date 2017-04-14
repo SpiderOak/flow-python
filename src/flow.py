@@ -23,7 +23,10 @@ import time
 
 import requests
 
-from . import definitions
+from . import (
+    definitions,
+    auto_updates,
+)
 
 LOG = logging.getLogger("flow")
 LOG.addHandler(logging.NullHandler())
@@ -305,11 +308,11 @@ class Flow(object):
             self,
             username="",
             server_uri=definitions.DEFAULT_URI,
-            flowappglue=definitions.get_default_flowappglue_path(),
+            flowappglue="",
             host=definitions.DEFAULT_SERVER,
             port=definitions.DEFAULT_PORT,
             db_dir=definitions.get_default_db_path(),
-            schema_dir=definitions.get_default_schema_path(),
+            schema_dir="",
             attachment_dir=definitions.get_default_attachment_path(),
             use_tls=definitions.DEFAULT_USE_TLS,
             glue_out_filename=None,
@@ -327,8 +330,21 @@ class Flow(object):
         """
         self.server_uri = server_uri
         self.api_timeout = None
+        self.auto_updates_enabled = False
+        self.db_dir = db_dir
+        self._check_file_exists(self.db_dir, True)
+        version_str = None
+        if not flowappglue:
+            flowappglue, schema_dir, version_str = \
+                auto_updates.get_newest_backend(self.db_dir)
+            LOG.debug(
+                "using flowappglue=%s, schema=%s, version=%s",
+                flowappglue,
+                schema_dir,
+                version_str,
+            )
+            self.auto_updates_enabled = True
         self._check_file_exists(flowappglue)
-        self._check_file_exists(db_dir, True)
         if glue_out_filename is not None:
             LOG.warning("glue_out_filename is a deprecated argument")
         self._token, self._port = self._start_flowappglue(
@@ -337,21 +353,32 @@ class Flow(object):
             decrement_file,
         )
         self.sessions = {}  # SessionID -> _Session
+        self._set_auto_updates_config(extra_config, version_str)
         # Configure flowappglue and create the session
         self._config(
             host,
             port,
-            db_dir,
+            self.db_dir,
             schema_dir,
             attachment_dir,
             use_tls,
             None,
-            extra_config)
+            extra_config,
+        )
         self._current_session = self.new_session()
         self._loop_process_notifications = threading.Event()
         # If username available then start the session
         if username:
             self.start_up(username)
+
+    @staticmethod
+    def _set_auto_updates_config(extra_config, version_str):
+        """Sets flowapp config needed to enable auto-updates."""
+        if "FlowCurrentVersion" not in extra_config:
+            extra_config["FlowCurrentVersion"] = version_str
+        if "FlowUpdateSignPublicKey" not in extra_config:
+            extra_config["FlowUpdateSignPublicKey"] = \
+                definitions.DEFAULT_AUTO_UPDATE_PK
 
     def _start_flowappglue(self, db_dir, flowappglue_path, decrement_file):
         """Starts the flowappglue/semaphor-backend process.
