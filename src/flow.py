@@ -312,13 +312,13 @@ class Flow(object):
             flowappglue="",
             host=definitions.DEFAULT_SERVER,
             port=definitions.DEFAULT_PORT,
-            db_dir=definitions.get_default_db_path(),
+            db_dir="",
             schema_dir="",
-            attachment_dir=definitions.get_default_attachment_path(),
+            attachment_dir="",
             use_tls=definitions.DEFAULT_USE_TLS,
             glue_out_filename=None,
             decrement_file=None,
-            extra_config={}):
+            extra_config=None):
         """Initializes the Flow object. It starts and configures
         flowappglue local server as a subprocess.
         It also starts a new session so that you can start using
@@ -329,48 +329,66 @@ class Flow(object):
         flowappglue : string, path to the flowappglue binary,
         if empty, then it tries to determine the location.
         """
-        self.server_uri = server_uri
         self.api_timeout = None
         self.auto_updates_enabled = False
-        self.db_dir = db_dir
+        self.username = username
+        self.server_uri = server_uri
+        self.flowappglue_path = flowappglue
+        self.host = host
+        self.port = port
+        self.db_dir = db_dir if db_dir else definitions.get_default_db_path()
+        self.schema_dir = schema_dir
+        self.attachment_dir = attachment_dir if attachment_dir else \
+            definitions.get_default_attachment_path()
+        self.use_tls = use_tls
+        self.decrement_file = decrement_file
+        if glue_out_filename is not None:
+            LOG.warning("glue_out_filename is a deprecated argument")
+        self.extra_config = extra_config if extra_config else {}
+        self.version_str = None
+        self._current_session = 0
+        self._flowappglue = None
+        self._init_semaphor_backend()
+
+    def _init_semaphor_backend(self):
+        """Start and initialize the semaphor-backend process."""
         self._check_file_exists(self.db_dir, True)
-        version_str = None
-        if not flowappglue:
-            flowappglue, schema_dir, version_str = \
+        if not self.flowappglue_path:
+            self.flowappglue_path, self.schema_dir, self.version_str = \
                 auto_updates.get_newest_backend(self.db_dir)
             LOG.debug(
                 "using flowappglue=%s, schema=%s, version=%s",
-                flowappglue,
-                schema_dir,
-                version_str,
+                self.flowappglue_path,
+                self.schema_dir,
+                self.version_str,
             )
             self.auto_updates_enabled = True
-        self._check_file_exists(flowappglue)
-        if glue_out_filename is not None:
-            LOG.warning("glue_out_filename is a deprecated argument")
+        self._check_file_exists(self.flowappglue_path)
         self._token, self._port = self._start_flowappglue(
-            db_dir,
-            flowappglue,
-            decrement_file,
+            self.db_dir,
+            self.flowappglue_path,
+            self.decrement_file,
         )
         self.sessions = {}  # SessionID -> _Session
-        self._set_auto_updates_config(extra_config, version_str)
-        # Configure flowappglue and create the session
+        self._set_auto_updates_config(self.extra_config, self.version_str)
+        self._loop_process_notifications = threading.Event()
+        self._config_and_startup()
+
+    def _config_and_startup(self):
+        """Execute the Config + NewSession + StartUp flow methods."""
         self._config(
-            host,
-            port,
+            self.host,
+            self.port,
             self.db_dir,
-            schema_dir,
-            attachment_dir,
-            use_tls,
+            self.schema_dir,
+            self.attachment_dir,
+            self.use_tls,
             None,
-            extra_config,
+            self.extra_config,
         )
         self._current_session = self.new_session()
-        self._loop_process_notifications = threading.Event()
-        # If username available then start the session
-        if username:
-            self.start_up(username)
+        if self.username:
+            self.start_up(self.username)
 
     @staticmethod
     def _set_auto_updates_config(extra_config, version_str):
@@ -585,7 +603,7 @@ class Flow(object):
             attachment_dir,
             use_tls,
             timeout=None,
-            extra_config={}):
+            extra_config=None):
         """Sets up the basic configuration parameters for FlowApp
         to talk FlowServ and create local accounts.
         If arguments are empty, then it will try to determine the
@@ -602,7 +620,8 @@ class Flow(object):
             FlowLocalAttachmentDir=attachment_dir,
             FlowUseTLS=use_tls,
         )
-        args.update(extra_config)
+        if extra_config:
+            args.update(extra_config)
         self._run("Config", timeout, **args)
 
     def register_callback(self, notification_name,
@@ -736,7 +755,7 @@ class Flow(object):
             if local_accounts:
                 username = local_accounts[0]["username"]
         sid = self._get_session_id(sid)
-        self._run(
+        response = self._run(
             method="StartUp",
             SessionID=sid,
             Username=username,
@@ -744,6 +763,8 @@ class Flow(object):
             timeout=timeout,
         )
         self.sessions[sid].start_notification_loop()
+        self.username = username
+        return response
 
     @staticmethod
     def _gen_random_number(digits_count):
@@ -784,7 +805,7 @@ class Flow(object):
         if not device_name:
             device_name = self._gen_device_name()
         sid = self._get_session_id(sid)
-        self._run(
+        response = self._run(
             method="CreateAccount",
             SessionID=sid,
             PhoneNumber=phone_number,
@@ -800,6 +821,8 @@ class Flow(object):
             timeout=timeout,
         )
         self.sessions[sid].start_notification_loop()
+        self.username = username
+        return response
 
     def create_dm_account(
             self,
@@ -843,6 +866,7 @@ class Flow(object):
             timeout=timeout,
         )
         self.sessions[sid].start_notification_loop()
+        self.username = username
         return response
 
     def setup_ldap_account(
@@ -900,6 +924,7 @@ class Flow(object):
             timeout=timeout,
         )
         self.sessions[sid].start_notification_loop()
+        self.username = username
         return response
 
     def create_device(self,
@@ -930,6 +955,7 @@ class Flow(object):
             timeout=timeout,
         )
         self.sessions[sid].start_notification_loop()
+        self.username = username
         return response
 
     def set_device_name(self, name, sid=0, timeout=None):
@@ -1636,7 +1662,7 @@ class Flow(object):
         if not device_name:
             device_name = self._gen_device_name()
         sid = self._get_session_id(sid)
-        self._run(
+        response = self._run(
             method="CreateDeviceFromD2D",
             SessionID=sid,
             RendezvousID=rendezvous_id,
@@ -1646,6 +1672,8 @@ class Flow(object):
             timeout=timeout,
         )
         self.sessions[sid].start_notification_loop()
+        self.username = self.identifier()["username"]
+        return response
 
     def cancel_rendezvous(self, sid=0, timeout=None):
         """CancelRendezvous tries cancelling an ongoing rendezvous, if any."""
