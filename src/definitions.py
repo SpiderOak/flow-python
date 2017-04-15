@@ -42,9 +42,13 @@ _DEFAULT_FLOWAPPGLUE_BINARY_PROD_NAME = "semaphor-backend%s" % _EXE_EXT
 
 class AutoUpdatesError(Exception):
     """Automatic updates specific error."""
+    pass
 
 
 def auto_update_app_dir():
+    """Return the relative resources/app directory
+    depending on the platform.
+    """
     if sys.platform == "darwin":
         return os.path.join("Contents", "Resources", "app")
     elif sys.platform in ("linux", "linux2", "win32"):
