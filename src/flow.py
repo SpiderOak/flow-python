@@ -235,6 +235,9 @@ class Flow(object):
                     self.notification_queue.put(change)
 
         def _check_auto_update(self, change):
+            """Sets an internal flag to run auto-update
+            if EventCode=27 is received.
+            """
             if change.get("type") == self.flow.NOTIFY_EVENT_NOTIFICATION and \
                change.get("data")["EventCode"] == 27:
                 LOG.debug("triggering semaphor-backend restart")
@@ -342,6 +345,7 @@ class Flow(object):
         flowappglue : string, path to the flowappglue binary,
         if empty, then it tries to determine the location.
         """
+        self._queued_methods = []
         self.api_timeout = None
         self.auto_updates_enabled = False
         self.username = username
@@ -393,6 +397,7 @@ class Flow(object):
         )
         self._set_auto_updates_config()
         self._config_and_startup()
+        LOG.debug("semaphor-backend initialized")
 
     def version(self):
         """Returns the release version of the semaphor-backend."""
@@ -400,6 +405,7 @@ class Flow(object):
 
     def _config_and_startup(self):
         """Execute the Config + NewSession + StartUp flow methods."""
+        LOG.debug("running Config+NewSession+StartUp...")
         self._config(
             self.host,
             self.port,
@@ -413,11 +419,13 @@ class Flow(object):
         self._current_session = self.new_session()
         if self.username:
             self.start_up(self.username)
+        LOG.debug("semaphor-backend configured")
 
     def _set_auto_updates_config(self):
         """Sets flowapp config needed to enable/disable auto-updates.
         If FlowCurrentVersion is empty, then auto-updates is disabled.
         """
+        LOG.debug("setting auto-updates config...")
         self.extra_config["FlowCurrentVersion"] = self.version_str
         if "FlowUpdateSignPublicKey" not in self.extra_config:
             self.extra_config["FlowUpdateSignPublicKey"] = \
@@ -509,7 +517,7 @@ class Flow(object):
             self._close(sid)
 
     @staticmethod
-    def gen_rand_req_id():
+    def _gen_rand_req_id():
         """Generate a 10-byte random id for debugging."""
         return "".join(
             random.choice(string.ascii_uppercase + string.digits)
@@ -534,7 +542,7 @@ class Flow(object):
         """
         rand_debug_req_id = None
         if LOG.getEffectiveLevel() == logging.DEBUG:
-            rand_debug_req_id = self.gen_rand_req_id()
+            rand_debug_req_id = self._gen_rand_req_id()
             LOG.debug(
                 "request: id=%s, %s",
                 rand_debug_req_id,
@@ -575,7 +583,10 @@ class Flow(object):
         """
         if self.auto_updates_enabled and \
            method not in ("Config", "NewSession", "StartUp"):
+            restarted = self._check_backend_restart()
             self._check_backend_restart()
+            if restarted:
+                self._run_queued_methods()
         request_data = dict(
             method=method,
             params=[params],
@@ -614,17 +625,31 @@ class Flow(object):
         else:
             return response_data
 
+    def _run_queued_methods(self):
+        """Runs the queued methods. This method is executed after the
+        semaphor-backend was restarted due to auto-updates.
+        """
+        LOG.debug("running queued methods...")
+        for method, args in self._queued_methods:
+            LOG.debug("running queued %s", method)
+            self._run(method, **args)
+
     def _check_backend_restart(self):
+        """If an auto update was detected then this performs a semaphor-backend
+        restart. It will block all APIs executing while the restart
+        is in progress.
+        """
         try:
             self._restart_check_lock.acquire()
             if not self.trigger_backend_restart.is_set():
-                return
+                return False
             # restart semaphor-backend, which should start
             # the new auto-update version
             LOG.debug("restart semaphor-backend")
             self._terminate_semaphor_backend(timeout_secs=5)
             self._init_semaphor_backend()
             LOG.debug("semaphor-backend restarted")
+            return True
         finally:
             self.trigger_backend_restart.clear()
             self._restart_check_lock.release()
@@ -812,7 +837,8 @@ class Flow(object):
             ServerURI=self.server_uri,
             timeout=timeout,
         )
-        self.sessions[sid].start_notification_loop()
+        if not self.sessions[sid].listen_notifications.is_set():
+            self.sessions[sid].start_notification_loop()
         self.username = username
         return response
 
@@ -1361,16 +1387,21 @@ class Flow(object):
         )
 
     def start_search(self, search_id, url, options, sid=0, timeout=None):
-        """Start a global search"""
+        """Start a global search."""
         sid = self._get_session_id(sid)
-        return self._run(
-            method="StartSearch",
+        method = "StartSearch"
+        args = dict(
             SessionID=sid,
             Id=search_id,
             Url=url,
             Options=options,
             timeout=timeout,
         )
+        response = self._run(method, **args)
+        # we queue the method internally to be re-called after
+        # a semaphor-backend restart
+        self._queued_methods.append((method, args))
+        return response
 
     def poll_search(self, search_id, sid=0, timeout=None):
         """poll for new search status"""
