@@ -56,6 +56,27 @@ def print_message(notif_type, notif_data):
 flow.process_notifications()
 ```
 
+## How does flow-python work?
+
+When a `Flow` object is created, flow-python spawns a `semaphor-backend` subprocess (this binary is packaged with [Semaphor](https://spideroak.com/opendownload)). Each flow-python API executed (e.g. `send_message()`, `new_channel()`, etc.) will perform a local HTTP request to the running semaphor-backend, which in turn will communicate securely with the Flow server.
+
+```
+Local                                       Cloud
++----------------------+                    +--------------------+
+| +------------------+ |                    |                    |
+| | semaphor-backend | |      TLS API       |  Flow Server       |
+| | subprocess       <---------------------->  Encrypted Storage |
+| +--+---------------+ |                    |                    |
+|    |                 |                    +--------------------+
+|    | HTTP API        |
+|    |                 |
+| +--+---------------+ |
+| | Python app using | |
+| | flow-python      | |
+| +------------------+ |
++----------------------+
+```
+
 ## Comments
 
 - Tested support on Linux, Windows and MacOS.
@@ -65,12 +86,20 @@ flow.process_notifications()
 - An application should use a single instance of `flow.Flow` per account.
 - Use `logging.getLogger("flow")` to configure the log level for the module.
 - By default, local databases and `semaphor-backend` output are located under `~/.config/flow-python`, you can override this on `Flow` init (`db_dir`). The config directory prior to 0.3 was `~/.config/semaphor`, see [here](CHANGELOG.md#03).
-- `Flow` init starts the `semaphor-backend` as a subprocess.
 - To start using `Flow` with an account you must use only one of these three API: (the three methods start the notification loop that listens from incoming events from the server)
   - `Flow.start_up  # This starts an already logged-in account`
   - `Flow.create_account  # This creates a new account`
   - `Flow.create_device  # This creates a new device for an existing account`
 - `Flow` methods raise `Flow.FlowError` if something went wrong. 
+
+## Auto-Updates
+
+Since version 0.6, flow-python will, by default, auto-update the `semaphor-backend` binary. As soon as an update is available, it will automatically terminate the current `semaphor-backend` subprocess and start the new one.
+
+Here's how you can turn off auto-updates (not recommended):
+```python
+account = Flow(extra_config={"FlowUpdateSignPublicKey": "off"})
+```
 
 ## Changelog
 
@@ -78,10 +107,6 @@ See [CHANGELOG.md](CHANGELOG.md)
 
 ## TODO
 
-- Implement remaining Flow API methods.
-- Document all arguments of the Flow API. 
+- Document all arguments of the Flow API methods.
 - Document Flow dict objects that are returned on many of the methods. Or find a better way to return these (objects vs dicts?).
-- Unit Testing the flow module.
-- It has support for multiple sessions but this hasn't been tested yet.
-- Auto-generate API methods from the `flowapp` API.
-- See other TODOs in source code.
+- Add support for multiple flowapp sessions.

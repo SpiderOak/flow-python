@@ -1590,29 +1590,6 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def new_org_member_state(self,
-                             oid,
-                             member_account_id,
-                             member_state,
-                             sid=0,
-                             timeout=None):
-        """Use set_org_member_state to change the state of an
-        existing member.
-        Sets the Org member state for a given account.
-        'member_state' can be one of the following:
-        'a' (admin), 'm' (member), 'o' (owner), 'b' (blocked).
-        TODO: remove or document this API.
-        """
-        sid = self._get_session_id(sid)
-        return self._run(
-            method="NewOrgMemberState",
-            SessionID=sid,
-            OrgID=oid,
-            MemberAccountID=member_account_id,
-            MemberState=member_state,
-            timeout=timeout,
-        )
-
     def set_org_member_state(self,
                              oid,
                              member_account_id,

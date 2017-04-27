@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(name = "flow-python",
-      version = "0.5",
+      version = "0.6",
       package_dir = { "flow": "src" },
       packages = [ "flow" ],
       install_requires = [ "requests" ],

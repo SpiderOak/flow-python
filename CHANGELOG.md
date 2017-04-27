@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6
+
+- `flow-python` will, by default, auto-update the `semaphor-backend` subprocess (without any changes in source code).
+
 ## 0.5
 
 - With the new auto-updates feature in Semaphor, the path to locate `semaphor-backend` and `flowapp/schema` was updated. If you are using the latest version of Semaphor with auto-updates, then you need to install `flow-python` v0.5.
