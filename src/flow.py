@@ -2033,6 +2033,26 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def get_organization_billing_url(self, oid, sid=0, timeout=None):
+        """Returns the Billing URL for the given org."""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="GetOrganizationBillingURL",
+            SessionID=sid,
+            OrgID=oid,
+            timeout=timeout,
+        )
+
+    def get_org_admin_dashboard_url(self, oid, sid=0, timeout=None):
+        """Returns the Admin Dashboard URL for the given org."""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="GetOrgAdminDashboardURL",
+            SessionID=sid,
+            OrgID=oid,
+            timeout=timeout,
+        )
+
     def _close(self, sid=0):
         """Closes a session and cleanly finishes
         any long running operations.
