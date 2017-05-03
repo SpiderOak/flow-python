@@ -379,16 +379,13 @@ class Flow(object):
         token_port_line = {}
         start = time.time()
         while abs(time.time() - start) < _FLOWAPPGLUE_WAIT_SECS:
-            data = stdout.read()
+            data = stdout.read().decode()
             if data and "\n" in data:
                 # the subprocess will still keep the file open, but we want
                 # the file to be deleted when the subprocess exits, so we
                 # should not keep a copy of it.
                 stdout.close()
-                try:
-                    token_port_line = json.loads(data)
-                except TypeError:
-                    token_port_line = json.loads(data.decode())
+                token_port_line = json.loads(data)
                 break
             stdout.seek(0)
             time.sleep(0.1)
