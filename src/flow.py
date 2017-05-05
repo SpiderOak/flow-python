@@ -2053,6 +2053,17 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def enumerate_pending_attachment_transfers(self, sid=0, timeout=None):
+        """Return a list with the pending upload/download
+        attachment transfers.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="EnumeratePendingAttachmentTransfers",
+            SessionID=sid,
+            timeout=timeout,
+        )
+
     def _close(self, sid=0):
         """Closes a session and cleanly finishes
         any long running operations.
