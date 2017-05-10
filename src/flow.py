@@ -1714,12 +1714,23 @@ class Flow(object):
     def set_channel_read_hwm(self, oid, cid, mid, sid=0, timeout=None):
         """Sets a new HWM for an account in a channel."""
         sid = self._get_session_id(sid)
-        self._run(
+        return self._run(
             method="SetChannelReadHWM",
             SessionID=sid,
             OrgID=oid,
             ChannelID=cid,
             MessageID=mid,
+            timeout=timeout,
+        )
+
+    def get_channel_read_hwm(self, oid, cid, sid=0, timeout=None):
+        """Returns a dict with HWM information for the given channel."""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="GetChannelReadHWM",
+            SessionID=sid,
+            OrgID=oid,
+            ChannelID=cid,
             timeout=timeout,
         )
 
@@ -2058,6 +2069,21 @@ class Flow(object):
         return self._run(
             method="EnumeratePendingAttachmentTransfers",
             SessionID=sid,
+            timeout=timeout,
+        )
+
+    def current_state(self, stage, sid=0, timeout=None):
+        """Return a summary of all orgs and channels of the account.
+        It is to be used after start up. Returns a dict of orgs with
+        a dict of channels with data. stage is an int, and can be 0 or 1.
+        stage=0 returns fast, stage=1 returns also unreads and last message
+        per channel, which may take more time to compute.
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="CurrentState",
+            SessionID=sid,
+            Stage=stage,
             timeout=timeout,
         )
 
