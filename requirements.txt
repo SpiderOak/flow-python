@@ -1,2 +1,2 @@
 requests>=2.2.1
-semantic-version>=2.6.0
+semantic-version==2.6.0
