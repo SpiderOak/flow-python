@@ -3,6 +3,7 @@ Flow Synchronous API Python Module.
 All Flow API responses are represented with Python dicts.
 """
 
+import base64
 import sys
 import subprocess
 import tempfile
@@ -1861,6 +1862,34 @@ class Flow(object):
             OrgID=oid,
             Preferences=preferences,
             ClearPreferences=clear_preferences,
+            timeout=timeout,
+        )
+
+    def get_org_pref(self, oid, key, sid=0, timeout=None):
+        """Get org oreference value"""
+        sid = self._get_session_id(sid)
+        res = self._run(
+            method="GetOrgPref",
+            SessionID=sid,
+            OrgID=oid,
+            Key=key,
+            timeout=timeout,
+        )
+        try:
+            res['value'] = base64.urlsafe_b64decode(str(res['value']))
+        except KeyError:
+            pass
+        return res
+
+    def set_org_pref(self, oid, key, value, sid=0, timeout=None):
+        """Set org preference value"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="SetOrgPref",
+            SessionID=sid,
+            OrgID=oid,
+            Key=key,
+            Value=base64.urlsafe_b64encode(value),
             timeout=timeout,
         )
 
