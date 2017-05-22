@@ -1941,7 +1941,7 @@ class Flow(object):
     def set_org_preferences(self, oid, preferences,
                             clear_preferences=None, sid=0, timeout=None):
         """Sets the preferences for org with id oid and clears the preference
-        items specified in clear_preferences"""
+        items specified in clear_preferences."""
         sid = self._get_session_id(sid)
         self._run(
             method="SetOrgPreferences",
@@ -1981,7 +1981,7 @@ class Flow(object):
         )
 
     def org_preferences(self, oid, sid=0, timeout=None):
-        """Returns a dict for the preferences for the provided oid"""
+        """Returns a dict for the preferences for the provided oid."""
         sid = self._get_session_id(sid)
         return self._run(
             method="OrgPreferences",
@@ -1992,7 +1992,9 @@ class Flow(object):
 
     def new_auto_add_to_channels_pref(
             self, org, channels, sid=0, timeout=None):
-        """Returns a string for the preferences for the provided oid"""
+        """Creates an auto-add-to-channels preferences for the given org
+        using the provided list of channels ids.
+        """
         sid = self._get_session_id(sid)
         return self._run(
             method="NewAutoAddToChannelsPref",
@@ -2017,7 +2019,7 @@ class Flow(object):
 
     def set_account_preferences(self, preferences,
                                 clear_preferences=None, sid=0, timeout=None):
-        """Sets and clear the specified preferences for the current account"""
+        """Sets and clear the specified preferences for the current account."""
         sid = self._get_session_id(sid)
         self._run(
             method="SetAccountPreferences",
@@ -2028,7 +2030,7 @@ class Flow(object):
         )
 
     def account_preferences(self, sid=0, timeout=None):
-        """Returns the current account preferences"""
+        """Returns the current account preferences."""
         sid = self._get_session_id(sid)
         return self._run(
             method="AccountPreferences",
@@ -2038,7 +2040,7 @@ class Flow(object):
 
     def is_muted_by_preferences(self, oid, cid, aid, sid=0, timeout=None):
         """Returns whether a message in the org, channel or by the sender
-        should be muted based on the current account's preferences"""
+        should be muted based on the current account's preferences."""
         sid = self._get_session_id(sid)
         return self._run(
             method="IsMutedByPreferences",
@@ -2046,6 +2048,62 @@ class Flow(object):
             OrgID=oid,
             ChannelID=cid,
             SenderID=aid,
+            timeout=timeout,
+        )
+
+    def create_escrow_account(
+            self,
+            device_name="",
+            phone_number="",
+            platform=sys.platform,
+            os_release=platform_module.release(),
+            totp_verifier="",
+            sid=0,
+            timeout=None):
+        """Creates an escrow account with the specified data.
+        This call also starts the notification loop for this session.
+        Returns a dict with the auto-generated username and password.
+        """
+        if not phone_number:
+            phone_number = self._gen_random_number(15)
+        if not totp_verifier:
+            totp_verifier = self._gen_random_number(15)
+        if not device_name:
+            device_name = self._gen_device_name()
+        sid = self._get_session_id(sid)
+        response = self._run(
+            method="CreateEscrowAccount",
+            SessionID=sid,
+            PhoneNumber=phone_number,
+            DeviceName=device_name,
+            ServerURI=self.server_uri,
+            Platform=platform,
+            OSRelease=os_release,
+            TotpVerifier=totp_verifier,
+            NotifyToken="",
+            timeout=timeout,
+        )
+        self.sessions[sid].start_notification_loop()
+        return response
+
+    def fetch_deleted_messages(self, oid, sid=0, timeout=None):
+        """Escrow accounts can fetch deleted messages from the server
+        """
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="FetchDeletedMessages",
+            OrgID=oid,
+            SessionID=sid,
+            timeout=timeout,
+        )
+
+    def enumerate_deleted_messages(self, cid, sid=0, timeout=None):
+        """Escrow accounts-only: Enumerate deleted messages from one channel"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="EnumerateDeletedMessages",
+            ChannelID=cid,
+            SessionID=sid,
             timeout=timeout,
         )
 
