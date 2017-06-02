@@ -24,7 +24,10 @@ import time
 
 import requests
 
-from . import definitions
+from . import (
+    definitions,
+    auto_updates,
+)
 
 LOG = logging.getLogger("flow")
 LOG.addHandler(logging.NullHandler())
@@ -160,7 +163,7 @@ class Flow(object):
             self.listen_notifications = threading.Event()
             self.notification_thread = threading.Thread(
                 target=self._notification_loop,
-                args=())
+            )
             self.notification_thread.daemon = True
             self.callback_lock = threading.Lock()
 
@@ -215,8 +218,11 @@ class Flow(object):
             if not isinstance(changes, list):
                 changes = [changes]
             for change in changes:
-                if change and "type" in change \
-                   and change["type"] in self.callbacks:
+                if not change:
+                    return
+                if self.flow.auto_updates_enabled:
+                    self._check_auto_update(change)
+                if change.get("type") in self.callbacks:
                     # This check should leave the queue with
                     # an approximate size of _MAX_QUEUE_SIZE
                     if self.notification_queue.qsize() > self._MAX_QUEUE_SIZE:
@@ -224,8 +230,18 @@ class Flow(object):
                         LOG.warn(
                             "Notification queue is full: "
                             "ignoring notification '%s'",
-                            notification["data"])
+                            notification["data"],
+                        )
                     self.notification_queue.put(change)
+
+        def _check_auto_update(self, change):
+            """Sets an internal flag to run auto-update
+            if EventCode=27 is received.
+            """
+            if change.get("type") == self.flow.NOTIFY_EVENT_NOTIFICATION and \
+               change.get("data")["EventCode"] == 27:
+                LOG.debug("triggering semaphor-backend restart")
+                self.flow.trigger_backend_restart.set()
 
         def _notification_loop(self):
             """Loops calling WaitForNotification on this session."""
@@ -234,12 +250,15 @@ class Flow(object):
                     # we don't timeout to wait for notifications
                     # in the notification loop.
                     changes = self.flow.wait_for_notification(sid=self.sid)
-                except Exception as flow_err:
-                    # Check whether flowappglue finished execution
+                except Flow.FlowConnectionError:
                     if self.flowappglue.poll() is not None:
+                        LOG.debug(
+                            "semaphor-backend subprocess not running, "
+                            "breaking from notification loop",
+                        )
                         break
-                    else:
-                        self._queue_error(str(flow_err))
+                except Exception as flow_err:
+                    self._queue_error(str(flow_err))
                 else:
                     self.callback_lock.acquire()
                     self._queue_changes(changes)
@@ -306,16 +325,16 @@ class Flow(object):
             self,
             username="",
             server_uri=definitions.DEFAULT_URI,
-            flowappglue=definitions.get_default_flowappglue_path(),
+            flowappglue="",
             host=definitions.DEFAULT_SERVER,
             port=definitions.DEFAULT_PORT,
-            db_dir=definitions.get_default_db_path(),
-            schema_dir=definitions.get_default_schema_path(),
-            attachment_dir=definitions.get_default_attachment_path(),
+            db_dir="",
+            schema_dir="",
+            attachment_dir="",
             use_tls=definitions.DEFAULT_USE_TLS,
             glue_out_filename=None,
             decrement_file=None,
-            extra_config={}):
+            extra_config=None):
         """Initializes the Flow object. It starts and configures
         flowappglue local server as a subprocess.
         It also starts a new session so that you can start using
@@ -326,35 +345,94 @@ class Flow(object):
         flowappglue : string, path to the flowappglue binary,
         if empty, then it tries to determine the location.
         """
-        self.server_uri = server_uri
+        self._queued_methods = []
         self.api_timeout = None
-        self._check_file_exists(flowappglue)
-        self._check_file_exists(db_dir, True)
+        self.auto_updates_enabled = False
+        self.username = username
+        self.server_uri = server_uri
+        self.flowappglue_path = flowappglue
+        self.host = host
+        self.port = port
+        self.db_dir = db_dir if db_dir else definitions.get_default_db_path()
+        self.schema_dir = schema_dir
+        self.attachment_dir = attachment_dir if attachment_dir else \
+            definitions.get_default_attachment_path()
+        self.use_tls = use_tls
+        self.decrement_file = decrement_file
         if glue_out_filename is not None:
             LOG.warning("glue_out_filename is a deprecated argument")
-        self._token, self._port = self._start_flowappglue(
-            db_dir,
-            flowappglue,
-            decrement_file,
-        )
+        self.extra_config = extra_config if extra_config else {}
+        self.version_str = extra_config.get("FlowCurrentVersion") \
+            if extra_config else None
+        # SessionID=0 means no session
+        self._current_session = 0
+        self._flowappglue = None
         self.sessions = {}  # SessionID -> _Session
-        # Configure flowappglue and create the session
-        self._config(
-            host,
-            port,
-            db_dir,
-            schema_dir,
-            attachment_dir,
-            use_tls,
-            None,
-            extra_config)
-        self._current_session = self.new_session()
         self._loop_process_notifications = threading.Event()
-        # If username available then start the session
-        if username:
-            self.start_up(username)
+        self.trigger_backend_restart = threading.Event()
+        self._restart_check_lock = threading.Lock()
+        self._init_semaphor_backend()
 
-    def _start_flowappglue(self, db_dir, flowappglue_path, decrement_file):
+    def _init_semaphor_backend(self):
+        """Start and initialize the semaphor-backend process."""
+        LOG.debug("initializing semaphor-backend process...")
+        self._check_file_exists(self.db_dir, True)
+        if not self.flowappglue_path:
+            flowappglue_path, self.schema_dir, self.version_str = \
+                auto_updates.get_newest_backend(self.db_dir)
+            LOG.debug(
+                "using flowappglue=%s, schema=%s, version=%s",
+                flowappglue_path,
+                self.schema_dir,
+                self.version_str,
+            )
+            self.auto_updates_enabled = True
+        else:
+            flowappglue_path = self.flowappglue_path
+        self._check_file_exists(flowappglue_path)
+        self._token, self._port = self._start_semaphor_backend(
+            self.db_dir,
+            flowappglue_path,
+            self.decrement_file,
+        )
+        self._set_auto_updates_config()
+        self._config_and_startup()
+        LOG.debug("semaphor-backend initialized")
+
+    def version(self):
+        """Returns the release version of the semaphor-backend."""
+        return self.version_str
+
+    def _config_and_startup(self):
+        """Execute the Config + NewSession + StartUp flow methods."""
+        LOG.debug("running Config+NewSession+StartUp...")
+        self._config(
+            self.host,
+            self.port,
+            self.db_dir,
+            self.schema_dir,
+            self.attachment_dir,
+            self.use_tls,
+            None,
+            self.extra_config,
+        )
+        self._current_session = self.new_session()
+        if self.username:
+            self.start_up(self.username)
+        LOG.debug("semaphor-backend configured")
+
+    def _set_auto_updates_config(self):
+        """Sets flowapp config needed to enable/disable auto-updates.
+        If FlowCurrentVersion is empty, then auto-updates is disabled.
+        """
+        LOG.debug("setting auto-updates config...")
+        self.extra_config["FlowCurrentVersion"] = self.version_str
+        if "FlowUpdateSignPublicKey" not in self.extra_config:
+            self.extra_config["FlowUpdateSignPublicKey"] = \
+                definitions.DEFAULT_AUTO_UPDATE_PK
+
+    def _start_semaphor_backend(
+            self, db_dir, flowappglue_path, decrement_file):
         """Starts the flowappglue/semaphor-backend process.
         Returns the token (string) and port (int) read
         from the subprocess stdout.
@@ -370,13 +448,14 @@ class Flow(object):
             db_dir,
             "semaphor_err_%d.log" % int(time.time()),
         )
+        LOG.debug("starting semaphor-backend process...")
         with open(stderr_file, "w") as stderr:
             self._flowappglue = subprocess.Popen(
                 glue,
                 stdout=stdout,
                 stderr=stderr,
             )
-        LOG.debug("reading flowappglue token+port")
+        LOG.debug("reading semaphor-backend token+port...")
         token_port_line = {}
         start = time.time()
         while abs(time.time() - start) < _FLOWAPPGLUE_WAIT_SECS:
@@ -391,28 +470,16 @@ class Flow(object):
             stdout.seek(0)
             time.sleep(0.1)
         else:
-            raise Flow.FlowError("failed to read flowappglue token+port")
+            raise Flow.FlowError("failed to read token+port")
         return token_port_line["token"], token_port_line["port"]
 
-    def terminate(self, timeout_secs=5):
-        """Shuts down the semaphor-backend local server.
-        Use this when you are done using the Flow API with this object.
-        It will first send a SIGTERM to the semaphor-backend process,
-        if the process does not finish the execution,
-        it will wait 'timeout_secs' before sending SIGKILL
-        to the semaphor-backend process.
-        """
-        # TODO: call 'Close' flowapp API here as soon as it is supported
-        start = time.time()
-
-        # Stop 'process_notifications()' loop
-        self._loop_process_notifications.clear()
-
-        # Terminate the flowappglue process
+    def _terminate_semaphor_backend(self, timeout_secs):
+        LOG.debug("terminating semaphor-backend subprocess...")
         if self._flowappglue and self._flowappglue.poll() is None:
             self._flowappglue.terminate()
 
         # Wait for process termination
+        start = time.time()
         if self._flowappglue:
             while self._flowappglue.poll() is None:
                 time.sleep(1)
@@ -427,6 +494,22 @@ class Flow(object):
                     except OSError as err:
                         LOG.warn("OSError killing process: %s", err)
                     break
+        LOG.debug("semaphor-backend process terminated")
+
+    def terminate(self, timeout_secs=5):
+        """Shuts down the semaphor-backend local server.
+        Use this when you are done using the Flow API with this object.
+        It will first send a SIGTERM to the semaphor-backend process,
+        if the process does not finish the execution,
+        it will wait 'timeout_secs' before sending SIGKILL
+        to the semaphor-backend process.
+        """
+        # TODO: call 'Close' flowapp API here as soon as it is supported
+
+        # Stop 'process_notifications()' loop
+        self._loop_process_notifications.clear()
+
+        self._terminate_semaphor_backend(timeout_secs=timeout_secs)
 
         # Close all sessions
         sids = list(self.sessions.keys())
@@ -434,7 +517,7 @@ class Flow(object):
             self._close(sid)
 
     @staticmethod
-    def gen_rand_req_id():
+    def _gen_rand_req_id():
         """Generate a 10-byte random id for debugging."""
         return "".join(
             random.choice(string.ascii_uppercase + string.digits)
@@ -459,7 +542,7 @@ class Flow(object):
         """
         rand_debug_req_id = None
         if LOG.getEffectiveLevel() == logging.DEBUG:
-            rand_debug_req_id = self.gen_rand_req_id()
+            rand_debug_req_id = self._gen_rand_req_id()
             LOG.debug(
                 "request: id=%s, %s",
                 rand_debug_req_id,
@@ -498,6 +581,12 @@ class Flow(object):
         Returns a dict with the response received from the flowappglue,
         it returns the 'result' part of the response.
         """
+        if self.auto_updates_enabled and \
+           method not in ("Config", "NewSession", "StartUp"):
+            restarted = self._check_backend_restart()
+            self._check_backend_restart()
+            if restarted:
+                self._run_queued_methods()
         request_data = dict(
             method=method,
             params=[params],
@@ -536,6 +625,35 @@ class Flow(object):
         else:
             return response_data
 
+    def _run_queued_methods(self):
+        """Runs the queued methods. This method is executed after the
+        semaphor-backend was restarted due to auto-updates.
+        """
+        LOG.debug("running queued methods...")
+        for method, args in self._queued_methods:
+            LOG.debug("running queued %s", method)
+            self._run(method, **args)
+
+    def _check_backend_restart(self):
+        """If an auto update was detected then this performs a semaphor-backend
+        restart. It will block all APIs executing while the restart
+        is in progress.
+        """
+        try:
+            self._restart_check_lock.acquire()
+            if not self.trigger_backend_restart.is_set():
+                return False
+            # restart semaphor-backend, which should start
+            # the new auto-update version
+            LOG.debug("restart semaphor-backend")
+            self._terminate_semaphor_backend(timeout_secs=5)
+            self._init_semaphor_backend()
+            LOG.debug("semaphor-backend restarted")
+            return True
+        finally:
+            self.trigger_backend_restart.clear()
+            self._restart_check_lock.release()
+
     @staticmethod
     def _check_file_exists(path, create_if_non_existent=False):
         """Internal check for path existence.
@@ -558,7 +676,7 @@ class Flow(object):
             attachment_dir,
             use_tls,
             timeout=None,
-            extra_config={}):
+            extra_config=None):
         """Sets up the basic configuration parameters for FlowApp
         to talk FlowServ and create local accounts.
         If arguments are empty, then it will try to determine the
@@ -575,7 +693,8 @@ class Flow(object):
             FlowLocalAttachmentDir=attachment_dir,
             FlowUseTLS=use_tls,
         )
-        args.update(extra_config)
+        if extra_config:
+            args.update(extra_config)
         self._run("Config", timeout, **args)
 
     def register_callback(self, notification_name,
@@ -679,7 +798,9 @@ class Flow(object):
             timeout=timeout,
         )
         sid = response["SessionID"]
-        self.sessions[sid] = self._Session(self, sid)
+        # if there's a _Session instance with the created session id, we use it
+        if sid not in self.sessions:
+            self.sessions[sid] = self._Session(self, sid)
         return sid
 
     def set_current_session(self, sid):
@@ -709,14 +830,17 @@ class Flow(object):
             if local_accounts:
                 username = local_accounts[0]["username"]
         sid = self._get_session_id(sid)
-        self._run(
+        response = self._run(
             method="StartUp",
             SessionID=sid,
             Username=username,
             ServerURI=self.server_uri,
             timeout=timeout,
         )
-        self.sessions[sid].start_notification_loop()
+        if not self.sessions[sid].listen_notifications.is_set():
+            self.sessions[sid].start_notification_loop()
+        self.username = username
+        return response
 
     @staticmethod
     def _gen_random_number(digits_count):
@@ -757,7 +881,7 @@ class Flow(object):
         if not device_name:
             device_name = self._gen_device_name()
         sid = self._get_session_id(sid)
-        self._run(
+        response = self._run(
             method="CreateAccount",
             SessionID=sid,
             PhoneNumber=phone_number,
@@ -773,6 +897,8 @@ class Flow(object):
             timeout=timeout,
         )
         self.sessions[sid].start_notification_loop()
+        self.username = username
+        return response
 
     def create_dm_account(
             self,
@@ -816,6 +942,7 @@ class Flow(object):
             timeout=timeout,
         )
         self.sessions[sid].start_notification_loop()
+        self.username = username
         return response
 
     def setup_ldap_account(
@@ -873,6 +1000,7 @@ class Flow(object):
             timeout=timeout,
         )
         self.sessions[sid].start_notification_loop()
+        self.username = username
         return response
 
     def create_device(self,
@@ -903,6 +1031,7 @@ class Flow(object):
             timeout=timeout,
         )
         self.sessions[sid].start_notification_loop()
+        self.username = username
         return response
 
     def set_device_name(self, name, sid=0, timeout=None):
@@ -1258,16 +1387,21 @@ class Flow(object):
         )
 
     def start_search(self, search_id, url, options, sid=0, timeout=None):
-        """Start a global search"""
+        """Start a global search."""
         sid = self._get_session_id(sid)
-        return self._run(
-            method="StartSearch",
+        method = "StartSearch"
+        args = dict(
             SessionID=sid,
             Id=search_id,
             Url=url,
             Options=options,
             timeout=timeout,
         )
+        response = self._run(method, **args)
+        # we queue the method internally to be re-called after
+        # a semaphor-backend restart
+        self._queued_methods.append((method, args))
+        return response
 
     def poll_search(self, search_id, sid=0, timeout=None):
         """poll for new search status"""
@@ -1289,8 +1423,8 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def search_message_results(
-            self, search_id, org_id, channel_id, start, stop, sid=0, timeout=None):
+    def search_message_results(self, search_id, org_id, channel_id, start,
+                               stop, sid=0, timeout=None):
         """get message slice from search results"""
         sid = self._get_session_id(sid)
         return self._run(
@@ -1304,8 +1438,8 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def search_message_context(
-            self, search_id, channel_id, message_id, before, after, sid=0, timeout=None):
+    def search_message_context(self, search_id, channel_id, message_id,
+                               before, after, sid=0, timeout=None):
         """get message slice from search results"""
         sid = self._get_session_id(sid)
         return self._run(
@@ -1456,29 +1590,6 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def new_org_member_state(self,
-                             oid,
-                             member_account_id,
-                             member_state,
-                             sid=0,
-                             timeout=None):
-        """Use set_org_member_state to change the state of an
-        existing member.
-        Sets the Org member state for a given account.
-        'member_state' can be one of the following:
-        'a' (admin), 'm' (member), 'o' (owner), 'b' (blocked).
-        TODO: remove or document this API.
-        """
-        sid = self._get_session_id(sid)
-        return self._run(
-            method="NewOrgMemberState",
-            SessionID=sid,
-            OrgID=oid,
-            MemberAccountID=member_account_id,
-            MemberState=member_state,
-            timeout=timeout,
-        )
-
     def set_org_member_state(self,
                              oid,
                              member_account_id,
@@ -1609,7 +1720,7 @@ class Flow(object):
         if not device_name:
             device_name = self._gen_device_name()
         sid = self._get_session_id(sid)
-        self._run(
+        response = self._run(
             method="CreateDeviceFromD2D",
             SessionID=sid,
             RendezvousID=rendezvous_id,
@@ -1619,6 +1730,8 @@ class Flow(object):
             timeout=timeout,
         )
         self.sessions[sid].start_notification_loop()
+        self.username = self.identifier()["username"]
+        return response
 
     def cancel_rendezvous(self, sid=0, timeout=None):
         """CancelRendezvous tries cancelling an ongoing rendezvous, if any."""

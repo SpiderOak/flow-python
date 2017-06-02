@@ -5,7 +5,6 @@ before_install:
 - sudo dpkg -i semaphor.deb
 
 install:
-- pip install -r requirements.txt
 - python setup.py install
 
 script: 
