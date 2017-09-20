@@ -326,8 +326,8 @@ class Flow(object):
             username="",
             server_uri=definitions.DEFAULT_URI,
             flowappglue="",
-            host=definitions.DEFAULT_SERVER,
-            port=definitions.DEFAULT_PORT,
+            host=definitions.DEFAULT_SERVER_HOST,
+            port=definitions.DEFAULT_SERVER_PORT,
             db_dir="",
             schema_dir="",
             attachment_dir="",
@@ -362,6 +362,12 @@ class Flow(object):
         if glue_out_filename is not None:
             LOG.warning("glue_out_filename is a deprecated argument")
         self.extra_config = extra_config if extra_config else {}
+        if not self.extra_config.get("FlowKeyBackupHost"):
+            self.extra_config["FlowKeyBackupHost"] = \
+                definitions.DEFAULT_KEY_SERVER_HOST
+        if not self.extra_config.get("FlowKeyBackupPort"):
+            self.extra_config["FlowKeyBackupPort"] = \
+                definitions.DEFAULT_KEY_SERVER_PORT
         self.version_str = extra_config.get("FlowCurrentVersion") \
             if extra_config else None
         # SessionID=0 means no session
@@ -2294,6 +2300,26 @@ class Flow(object):
             method="CurrentState",
             SessionID=sid,
             Stage=stage,
+            timeout=timeout,
+        )
+
+    def backup_key(self, password, sid=0, timeout=None):
+        """Backs up the account root key."""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="BackupKey",
+            SessionID=sid,
+            Password=password,
+            timeout=timeout,
+        )
+
+    def recover_key(self, password, sid=0, timeout=None):
+        """Recovers the account root key."""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="RecoverKey",
+            SessionID=sid,
+            Password=password,
             timeout=timeout,
         )
 

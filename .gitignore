@@ -58,3 +58,6 @@ target/
 
 # MacOS
 .DS_Store
+
+# Python rope
+*.ropeproject*

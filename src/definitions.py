@@ -9,8 +9,10 @@ import sys
 
 
 # Sane default definitions
-DEFAULT_SERVER = "flow.spideroak.com"
-DEFAULT_PORT = "443"
+DEFAULT_SERVER_HOST = "flow.spideroak.com"
+DEFAULT_SERVER_PORT = "443"
+DEFAULT_KEY_SERVER_HOST = "flow.spideroak.com"
+DEFAULT_KEY_SERVER_PORT = "443"
 DEFAULT_USE_TLS = "true"
 DEFAULT_URI = "flow.spideroak.com"
 DEFAULT_AUTO_UPDATE_PK = "zm5MU5d4M+an/ndE1dHrtbLfpNj1BJUBNEcJJpUWi70="
