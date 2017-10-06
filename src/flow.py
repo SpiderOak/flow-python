@@ -2272,6 +2272,16 @@ class Flow(object):
             timeout=timeout,
         )
 
+    def graphql(self, query, args, sid=0, timeout=None):
+        """Start a GraphQL query"""
+        sid = self._get_session_id(sid)
+        return self._run(
+            method="GraphQL",
+            SessionID=sid,
+            Query=query,
+            Args=args,
+        )
+
     def current_state(self, stage, sid=0, timeout=None):
         """Return a summary of all orgs and channels of the account.
         It is to be used after start up. Returns a dict of orgs with
