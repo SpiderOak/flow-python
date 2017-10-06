@@ -2303,26 +2303,6 @@ class Flow(object):
             timeout=timeout,
         )
 
-    def backup_key(self, password, sid=0, timeout=None):
-        """Backs up the account root key."""
-        sid = self._get_session_id(sid)
-        return self._run(
-            method="BackupKey",
-            SessionID=sid,
-            Password=password,
-            timeout=timeout,
-        )
-
-    def recover_key(self, password, sid=0, timeout=None):
-        """Recovers the account root key."""
-        sid = self._get_session_id(sid)
-        return self._run(
-            method="RecoverKey",
-            SessionID=sid,
-            Password=password,
-            timeout=timeout,
-        )
-
     def _close(self, sid=0):
         """Closes a session and cleanly finishes
         any long running operations.
