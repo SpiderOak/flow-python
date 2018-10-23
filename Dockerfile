@@ -11,8 +11,12 @@ RUN wget https://spideroak.com/releases/semaphor/debian \
     && dpkg -i debian \
     && rm -rf debian
 
+COPY . /flow-python
+WORKDIR /flow-python
+
 # Install flow-python
-RUN pip install git+https://github.com/SpiderOak/flow-python.git
+RUN pip install -r requirements.txt \
+&& pip install .
 
 # Execute python to start using flow-python
 CMD python
